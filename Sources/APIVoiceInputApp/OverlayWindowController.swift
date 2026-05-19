@@ -176,7 +176,7 @@ private final class ProcessingGaugeView: NSView {
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.phase = (self.phase + 0.025).truncatingRemainder(dividingBy: 1)
+                self.phase = (self.phase + 0.035).truncatingRemainder(dividingBy: 1)
                 self.needsDisplay = true
             }
         }
@@ -204,14 +204,23 @@ private final class ProcessingGaugeView: NSView {
         NSColor.white.withAlphaComponent(0.20).setFill()
         NSBezierPath(roundedRect: trackRect, xRadius: trackRect.height / 2, yRadius: trackRect.height / 2).fill()
 
-        let segmentWidth = bounds.width * 0.38
-        let travel = bounds.width + segmentWidth
-        let x = phase * travel - segmentWidth
+        guard timer != nil else { return }
+
+        let segmentWidth = bounds.width * 0.58
+        let travel = bounds.width - segmentWidth
+        let x = trackRect.minX + phase * travel
         let segmentRect = NSRect(x: x, y: trackRect.minY, width: segmentWidth, height: trackRect.height)
-            .intersection(trackRect)
-        if segmentRect.isEmpty == false {
-            NSColor.white.withAlphaComponent(0.92).setFill()
-            NSBezierPath(roundedRect: segmentRect, xRadius: segmentRect.height / 2, yRadius: segmentRect.height / 2).fill()
-        }
+        NSColor.white.withAlphaComponent(0.88).setFill()
+        NSBezierPath(roundedRect: segmentRect, xRadius: segmentRect.height / 2, yRadius: segmentRect.height / 2).fill()
+
+        let leadingDotSize = trackRect.height + 2
+        let leadingDotRect = NSRect(
+            x: min(trackRect.maxX - leadingDotSize, segmentRect.maxX - leadingDotSize),
+            y: trackRect.midY - leadingDotSize / 2,
+            width: leadingDotSize,
+            height: leadingDotSize
+        )
+        NSColor.white.withAlphaComponent(1.0).setFill()
+        NSBezierPath(ovalIn: leadingDotRect).fill()
     }
 }
