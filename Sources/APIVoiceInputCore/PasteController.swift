@@ -15,6 +15,22 @@ public protocol KeyboardClient: Sendable {
     func sendEnter() throws
 }
 
+public protocol PasteTimingClient: Sendable {
+    func waitBeforeEnter()
+}
+
+public struct DefaultPasteTimingClient: PasteTimingClient {
+    private let enterDelaySeconds: TimeInterval
+
+    public init(enterDelaySeconds: TimeInterval = 0.18) {
+        self.enterDelaySeconds = enterDelaySeconds
+    }
+
+    public func waitBeforeEnter() {
+        Thread.sleep(forTimeInterval: enterDelaySeconds)
+    }
+}
+
 public enum PasteControllerError: Error, Equatable, Sendable {
     case emptyText
 }
@@ -22,10 +38,16 @@ public enum PasteControllerError: Error, Equatable, Sendable {
 public final class PasteController: Sendable {
     private let clipboard: any ClipboardClient
     private let keyboard: any KeyboardClient
+    private let timing: any PasteTimingClient
 
-    public init(clipboard: any ClipboardClient, keyboard: any KeyboardClient) {
+    public init(
+        clipboard: any ClipboardClient,
+        keyboard: any KeyboardClient,
+        timing: any PasteTimingClient = DefaultPasteTimingClient()
+    ) {
         self.clipboard = clipboard
         self.keyboard = keyboard
+        self.timing = timing
     }
 
     public func paste(_ text: String, mode: PasteMode) throws {
@@ -36,6 +58,7 @@ public final class PasteController: Sendable {
         try clipboard.writeString(text)
         try keyboard.sendPaste()
         if mode == .pasteThenEnter {
+            timing.waitBeforeEnter()
             try keyboard.sendEnter()
         }
     }
