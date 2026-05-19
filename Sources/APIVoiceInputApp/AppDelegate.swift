@@ -85,6 +85,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func process(audioURL: URL) async {
         do {
+            let activity = try AudioActivityAnalyzer().analyze(audioFileURL: audioURL)
+            DebugLog.write(
+                String(
+                    format: "audioActivity duration=%.2f rms=%.1f peak=%.1f",
+                    activity.durationSeconds,
+                    activity.rmsDBFS,
+                    activity.peakDBFS
+                )
+            )
+            let emptyGuard = EmptyUtteranceGuard()
+            if emptyGuard.shouldSkipTranscription(activity: activity) {
+                DebugLog.write("process canceled empty audio before transcription")
+                overlay.show(.canceled, detail: "貼り付けなし")
+                try? FileManager.default.removeItem(at: audioURL)
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                overlay.hide()
+                return
+            }
+
             let groqKey = try keychain.loadAPIKey(account: AppSettings.groqKeyAccount)
             guard let groqKey, groqKey.isEmpty == false else {
                 DebugLog.write("process failed missing Groq API key")
@@ -97,6 +116,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DebugLog.write("process transcription begin")
             let result = try await pipeline.run(audioFileURL: audioURL, profile: profile)
             DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")
+            if emptyGuard.shouldSuppressTranscript(result.finalText, activity: activity) {
+                DebugLog.write("process canceled common silence hallucination transcript=\(result.finalText)")
+                overlay.show(.canceled, detail: "誤認識を破棄")
+                try? FileManager.default.removeItem(at: audioURL)
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                overlay.hide()
+                return
+            }
             let paste = PasteController(clipboard: SystemClipboardClient(), keyboard: SystemKeyboardClient())
             try paste.paste(result.finalText, mode: profile.pasteMode)
             overlay.show(.pasted)
@@ -104,10 +131,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try? await Task.sleep(nanoseconds: 900_000_000)
             overlay.hide()
         } catch {
-            DebugLog.write("startRecording failed error=\(error.localizedDescription)")
-            overlay.show(.failed, detail: "録音開始失敗: \(error.localizedDescription)")
+            DebugLog.write("process failed error=\(error.localizedDescription)")
+            overlay.show(.failed, detail: error.localizedDescription)
         }
     }
+
 }
 
 struct SystemClipboardClient: ClipboardClient {

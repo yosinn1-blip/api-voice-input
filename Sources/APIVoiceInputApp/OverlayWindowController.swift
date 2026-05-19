@@ -8,6 +8,7 @@ final class OverlayWindowController {
         case cleaning = "清書中"
         case pasted = "貼り付けました"
         case failed = "失敗しました"
+        case canceled = "音声なし"
     }
 
     private let window: NSWindow

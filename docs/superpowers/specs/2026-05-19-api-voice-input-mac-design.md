@@ -268,3 +268,10 @@ Everything else should wait until the loop feels good.
 - Any hotkey/Fn/F19/menu trigger now briefly shows `入力検出: <source>` before recording starts or stops.
 - Debug log path: `~/Library/Application Support/APIVoiceInput/debug.log`.
 - The log records app launch, hotkey registration status, direct Fn event tap registration, toggle source, recording start/finish, STT start/success/failure, and missing API key state.
+
+## Empty utterance guard update
+
+- Problem: when the user presses Fn, says nothing, waits, and presses Fn again, cloud STT can hallucinate common Japanese closing phrases such as `ありがとうございました` and paste them.
+- Fix: the app now analyzes recorded audio before sending it to STT. Very short or silent/low-energy recordings are canceled locally and show `音声なし · 貼り付けなし`.
+- Second guard: if a low-energy recording still returns a known silence hallucination such as `ありがとうございました。`, the transcript is discarded and not pasted.
+- Debug log now records `audioActivity duration/rms/peak` and whether processing was canceled before transcription or after hallucination detection.

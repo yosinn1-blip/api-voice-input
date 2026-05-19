@@ -15,7 +15,8 @@ let package = Package(
             name: "APIVoiceInputCore",
             dependencies: [],
             linkerSettings: [
-                .linkedFramework("Security")
+                .linkedFramework("Security"),
+                .linkedFramework("AVFoundation")
             ]
         ),
         .executableTarget(
