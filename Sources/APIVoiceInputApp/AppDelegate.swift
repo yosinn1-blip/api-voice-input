@@ -125,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             let profile = VoiceProfile.defaultJapanese
             let transcription = GroqTranscriptionProvider(apiKey: groqKey)
-            let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: NoCleanupProvider())
+            let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: FillerRemovalCleanupProvider())
             DebugLog.write("process transcription begin")
             let result = try await pipeline.run(audioFileURL: audioURL, profile: profile)
             DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")

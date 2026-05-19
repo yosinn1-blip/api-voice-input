@@ -6,7 +6,7 @@ final class ProfileStoreTests: XCTestCase {
         let profile = VoiceProfile.defaultJapanese
         XCTAssertEqual(profile.sttLanguageHint, "ja")
         XCTAssertEqual(profile.transcriptionProviderID, "groq-whisper-large-v3-turbo")
-        XCTAssertEqual(profile.cleanupProviderID, "none")
+        XCTAssertEqual(profile.cleanupProviderID, "rule-based-filler-removal")
         XCTAssertEqual(profile.pasteMode, .pasteOnly)
     }
 
