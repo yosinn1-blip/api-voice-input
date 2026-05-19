@@ -113,8 +113,8 @@ private final class WaveformView: NSView {
     private var phase: CGFloat = 0
     private var targetLevel: CGFloat = 0
     private var displayedLevel: CGFloat = 0
-    private let barCount = 15
-    private var levelHistory = Array(repeating: CGFloat(0), count: 15)
+    private let pointCount = 46
+    private var waveformHistory = Array(repeating: CGFloat(0), count: 46)
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -129,15 +129,15 @@ private final class WaveformView: NSView {
 
     func startAnimating() {
         guard timer == nil else { return }
-        let timer = Timer(timeInterval: 1.0 / 24.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.phase += 0.28
+                self.phase += 0.26
                 let reactiveTarget = Self.visualLevel(from: self.targetLevel)
-                let attack: CGFloat = reactiveTarget > self.displayedLevel ? 0.68 : 0.30
+                let attack: CGFloat = reactiveTarget > self.displayedLevel ? 0.72 : 0.34
                 self.displayedLevel += (reactiveTarget - self.displayedLevel) * attack
-                self.levelHistory.removeFirst()
-                self.levelHistory.append(self.displayedLevel)
+                self.waveformHistory.removeFirst()
+                self.waveformHistory.append(self.nextWaveformSample())
                 self.needsDisplay = true
             }
         }
@@ -154,40 +154,75 @@ private final class WaveformView: NSView {
         return min(0.86, pow(lifted, 0.76))
     }
 
+    private func nextWaveformSample() -> CGFloat {
+        guard displayedLevel > 0.015 else {
+            return 0.018 * sin(phase * 0.9)
+        }
+
+        let baseWave =
+            0.54 * sin(phase * 2.7) +
+            0.28 * sin(phase * 6.2 + 0.9) +
+            0.14 * sin(phase * 12.0 + 1.7)
+        let spikePhase = sin(phase * 1.45)
+        let spike = spikePhase > 0.90 ? (spikePhase - 0.90) * 5.5 : 0
+        let signed = (baseWave + spike) * displayedLevel
+        return min(0.92, max(-0.92, signed))
+    }
+
     func stopAnimating() {
         timer?.invalidate()
         timer = nil
         phase = 0
         targetLevel = 0
         displayedLevel = 0
-        levelHistory = Array(repeating: CGFloat(0), count: barCount)
+        waveformHistory = Array(repeating: CGFloat(0), count: pointCount)
         needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
+        guard waveformHistory.count > 1 else { return }
 
-        let barWidth: CGFloat = 2.8
-        let gap = (bounds.width - CGFloat(barCount) * barWidth) / CGFloat(max(barCount - 1, 1))
         let midY = bounds.midY
-        let maxHeight = bounds.height - 2
-        let color = NSColor.white.withAlphaComponent(0.92)
-        color.setFill()
+        let horizontalInset: CGFloat = 9
+        let usableWidth = max(1, bounds.width - horizontalInset * 2)
+        let step = usableWidth / CGFloat(max(waveformHistory.count - 1, 1))
+        let amplitude = bounds.height * 0.36
 
-        for index in 0..<barCount {
-            let x = CGFloat(index) * (barWidth + gap)
-            let sample = min(max(levelHistory[index], 0), 1)
-            let center = CGFloat(barCount - 1) / 2
-            let distanceFromCenter = abs(CGFloat(index) - center) / max(center, 1)
-            let centerWeight = 0.62 + (1 - distanceFromCenter) * 0.34
-            let motion = 0.92 + 0.13 * sin(phase + CGFloat(index) * 1.35)
-            let ripple = sample * 0.055 * (sin(phase * 1.7 + CGFloat(index) * 0.85) + 1) / 2
-            let visualLevel = min(0.88, sample * centerWeight * motion + ripple)
-            let height = max(2.0, (0.11 + visualLevel * 0.74) * maxHeight)
-            let rect = NSRect(x: x, y: midY - height / 2, width: barWidth, height: height)
-            NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
+        let baseline = NSBezierPath()
+        baseline.move(to: NSPoint(x: horizontalInset, y: midY))
+        baseline.line(to: NSPoint(x: bounds.width - horizontalInset, y: midY))
+        baseline.lineWidth = 1
+        NSColor.white.withAlphaComponent(0.14).setStroke()
+        baseline.stroke()
+
+        let glowPath = NSBezierPath()
+        let linePath = NSBezierPath()
+        for (index, sample) in waveformHistory.enumerated() {
+            let x = horizontalInset + CGFloat(index) * step
+            let y = midY - sample * amplitude
+            let point = NSPoint(x: x, y: y)
+            if index == 0 {
+                glowPath.move(to: point)
+                linePath.move(to: point)
+            } else {
+                glowPath.line(to: point)
+                linePath.line(to: point)
+            }
         }
+
+        glowPath.lineJoinStyle = .round
+        glowPath.lineCapStyle = .round
+        glowPath.lineWidth = 4.6
+        NSColor.white.withAlphaComponent(0.12).setStroke()
+        glowPath.stroke()
+
+        linePath.lineJoinStyle = .round
+        linePath.lineCapStyle = .round
+        linePath.lineWidth = 2.0
+        NSColor.white.withAlphaComponent(0.92).setStroke()
+        linePath.stroke()
     }
 }
 
