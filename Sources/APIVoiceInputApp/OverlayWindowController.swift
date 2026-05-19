@@ -196,13 +196,13 @@ private final class WaveformView: NSView {
             let recency = CGFloat(index) / CGFloat(max(waveformHistory.count - 1, 1))
             let activity = min(1, abs(sample) * 1.15 + displayedLevel * 0.25)
             let radius = index == waveformHistory.count - 1
-                ? CGFloat(1.45)
-                : CGFloat(1.05 + activity * 0.14)
+                ? CGFloat(1.90)
+                : CGFloat(1.48 + activity * 0.16)
             let alpha = index == waveformHistory.count - 1
-                ? CGFloat(0.92)
-                : CGFloat(0.34 + recency * 0.36 + activity * 0.12)
+                ? CGFloat(0.95)
+                : CGFloat(0.42 + recency * 0.34 + activity * 0.12)
 
-            NSColor.white.withAlphaComponent(min(alpha, 0.78)).setFill()
+            NSColor.white.withAlphaComponent(min(alpha, 0.84)).setFill()
             let dotRect = NSRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
             NSBezierPath(ovalIn: dotRect).fill()
         }
