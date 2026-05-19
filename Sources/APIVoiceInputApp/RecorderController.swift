@@ -1,3 +1,4 @@
+import APIVoiceInputCore
 import AVFoundation
 import Foundation
 
@@ -31,7 +32,7 @@ final class RecorderController: NSObject, AVAudioRecorderDelegate {
         recorder.updateMeters()
         let averagePower = recorder.averagePower(forChannel: 0)
         let peakPower = recorder.peakPower(forChannel: 0)
-        return Self.normalizedLevel(averagePower: averagePower, peakPower: peakPower)
+        return AudioLevelNormalizer.normalizedLevel(averagePower: averagePower, peakPower: peakPower)
     }
 
     func stopRecording() -> URL? {
@@ -40,12 +41,4 @@ final class RecorderController: NSObject, AVAudioRecorderDelegate {
         return currentURL
     }
 
-    private static func normalizedLevel(averagePower: Float, peakPower: Float) -> Double {
-        let floorDB: Float = -64
-        let ceilingDB: Float = -16
-        let weightedPower = max(averagePower, peakPower - 8)
-        let clamped = min(max(weightedPower, floorDB), ceilingDB)
-        let linear = (clamped - floorDB) / (ceilingDB - floorDB)
-        return Double(pow(linear, 0.58))
-    }
 }

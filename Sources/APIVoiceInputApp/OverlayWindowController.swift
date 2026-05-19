@@ -133,7 +133,7 @@ private final class WaveformView: NSView {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.phase += 0.22
-                let attack: CGFloat = self.targetLevel > self.displayedLevel ? 0.58 : 0.24
+                let attack: CGFloat = self.targetLevel > self.displayedLevel ? 0.38 : 0.20
                 self.displayedLevel += (self.targetLevel - self.displayedLevel) * attack
                 self.levelHistory.removeFirst()
                 self.levelHistory.append(self.displayedLevel)
@@ -172,9 +172,10 @@ private final class WaveformView: NSView {
         for index in 0..<barCount {
             let x = CGFloat(index) * (barWidth + gap)
             let sample = min(max(levelHistory[index], 0), 1)
-            let liveRipple = 0.05 * (sin(phase + CGFloat(index) * 0.9) + 1) / 2
+            let liveRipple = 0.035 * (sin(phase + CGFloat(index) * 0.9) + 1) / 2
             let level = min(1, sample + liveRipple)
-            let height = max(2.0, (0.10 + level * 0.90) * maxHeight)
+            let visualLevel = pow(level, 1.10)
+            let height = max(2.0, (0.12 + visualLevel * 0.70) * maxHeight)
             let rect = NSRect(x: x, y: midY - height / 2, width: barWidth, height: height)
             NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         }
