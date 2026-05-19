@@ -14,11 +14,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         DebugLog.write("app launched")
-        overlay.show(.pasted, detail: "起動しました")
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 900_000_000)
-            if self.isRecording == false { self.overlay.hide() }
-        }
         statusMenu = StatusMenuController { [weak self] in
             self?.toggleRecording(source: "menu")
         } openAccessibilitySettings: {
@@ -60,7 +55,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleRecording(source: String) {
         DebugLog.write("toggle source=\(source) isRecording=\(isRecording)")
-        overlay.show(.pasted, detail: "入力検出: \(source)")
         if isRecording {
             finishRecording(source: source)
         } else {
