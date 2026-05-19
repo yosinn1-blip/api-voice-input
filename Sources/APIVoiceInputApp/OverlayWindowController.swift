@@ -33,12 +33,12 @@ final class OverlayWindowController {
         NSLayoutConstraint.activate([
             waveformView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             waveformView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            waveformView.widthAnchor.constraint(equalToConstant: 118),
+            waveformView.widthAnchor.constraint(equalToConstant: 102),
             waveformView.heightAnchor.constraint(equalToConstant: 18),
 
             progressView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             progressView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            progressView.widthAnchor.constraint(equalToConstant: 122),
+            progressView.widthAnchor.constraint(equalToConstant: 106),
             progressView.heightAnchor.constraint(equalToConstant: 6)
         ])
 
@@ -90,7 +90,7 @@ final class OverlayWindowController {
 
     private func positionWindow() {
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let width: CGFloat = 168
+        let width: CGFloat = 148
         let height: CGFloat = 32
         let x = screen.midX - width / 2
         let y = screen.minY + 36
