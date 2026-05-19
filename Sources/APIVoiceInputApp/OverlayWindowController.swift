@@ -113,8 +113,7 @@ private final class WaveformView: NSView {
     private var phase: CGFloat = 0
     private var targetLevel: CGFloat = 0
     private var displayedLevel: CGFloat = 0
-    private let pointCount = 46
-    private var waveformHistory = Array(repeating: CGFloat(0), count: 46)
+    private let dotCount = 17
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -136,8 +135,6 @@ private final class WaveformView: NSView {
                 let reactiveTarget = Self.visualLevel(from: self.targetLevel)
                 let attack: CGFloat = reactiveTarget > self.displayedLevel ? 0.72 : 0.34
                 self.displayedLevel += (reactiveTarget - self.displayedLevel) * attack
-                self.waveformHistory.removeFirst()
-                self.waveformHistory.append(self.nextWaveformSample())
                 self.needsDisplay = true
             }
         }
@@ -154,20 +151,6 @@ private final class WaveformView: NSView {
         return min(0.86, pow(lifted, 0.76))
     }
 
-    private func nextWaveformSample() -> CGFloat {
-        guard displayedLevel > 0.015 else {
-            return 0.018 * sin(phase * 0.9)
-        }
-
-        let baseWave =
-            0.54 * sin(phase * 2.7) +
-            0.28 * sin(phase * 6.2 + 0.9) +
-            0.14 * sin(phase * 12.0 + 1.7)
-        let spikePhase = sin(phase * 1.45)
-        let spike = spikePhase > 0.90 ? (spikePhase - 0.90) * 5.5 : 0
-        let signed = (baseWave + spike) * displayedLevel
-        return min(0.92, max(-0.92, signed))
-    }
 
     func stopAnimating() {
         timer?.invalidate()
@@ -175,32 +158,32 @@ private final class WaveformView: NSView {
         phase = 0
         targetLevel = 0
         displayedLevel = 0
-        waveformHistory = Array(repeating: CGFloat(0), count: pointCount)
         needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
-        guard waveformHistory.count > 1 else { return }
 
         let midY = bounds.midY
-        let horizontalInset: CGFloat = 9
+        let horizontalInset: CGFloat = 12
         let usableWidth = max(1, bounds.width - horizontalInset * 2)
-        let step = usableWidth / CGFloat(max(waveformHistory.count - 1, 1))
-        let amplitude = bounds.height * 0.36
+        let step = usableWidth / CGFloat(max(dotCount - 1, 1))
+        let amplitude = bounds.height * 0.28
+        let center = CGFloat(dotCount - 1) / 2
+        let level = max(displayedLevel, targetLevel * 0.25)
 
-        for (index, sample) in waveformHistory.enumerated() {
+        for index in 0..<dotCount {
             let x = horizontalInset + CGFloat(index) * step
+            let distanceFromCenter = abs(CGFloat(index) - center) / max(center, 1)
+            let centerWeight = 0.28 + (1 - distanceFromCenter) * 0.72
+            let wave = sin(phase + CGFloat(index) * 0.72)
+            let secondary = 0.22 * sin(phase * 1.65 + CGFloat(index) * 1.18)
+            let sample = (wave + secondary) * level * centerWeight
             let y = midY - sample * amplitude
-            let recency = CGFloat(index) / CGFloat(max(waveformHistory.count - 1, 1))
-            let activity = min(1, abs(sample) * 1.15 + displayedLevel * 0.25)
-            let radius = index == waveformHistory.count - 1
-                ? CGFloat(1.90)
-                : CGFloat(1.48 + activity * 0.16)
-            let alpha = index == waveformHistory.count - 1
-                ? CGFloat(0.95)
-                : CGFloat(0.42 + recency * 0.34 + activity * 0.12)
+            let activity = min(1, level * centerWeight)
+            let radius = CGFloat(1.46 + activity * 0.22)
+            let alpha = CGFloat(0.46 + activity * 0.32)
 
             NSColor.white.withAlphaComponent(min(alpha, 0.84)).setFill()
             let dotRect = NSRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
