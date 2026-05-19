@@ -16,18 +16,43 @@ public protocol KeyboardClient: Sendable {
 }
 
 public protocol PasteTimingClient: Sendable {
-    func waitBeforeEnter()
+    func waitBeforeEnter(characterCount: Int)
+}
+
+public struct AdaptivePasteEnterDelay: Sendable {
+    private let baseDelaySeconds: TimeInterval
+    private let longTextThreshold: Int
+    private let additionalDelayPerCharacter: TimeInterval
+    private let maximumDelaySeconds: TimeInterval
+
+    public init(
+        baseDelaySeconds: TimeInterval = 0.18,
+        longTextThreshold: Int = 300,
+        additionalDelayPerCharacter: TimeInterval = 0.0005,
+        maximumDelaySeconds: TimeInterval = 0.65
+    ) {
+        self.baseDelaySeconds = baseDelaySeconds
+        self.longTextThreshold = longTextThreshold
+        self.additionalDelayPerCharacter = additionalDelayPerCharacter
+        self.maximumDelaySeconds = maximumDelaySeconds
+    }
+
+    public func delaySeconds(forCharacterCount characterCount: Int) -> TimeInterval {
+        let extraCharacters = max(0, characterCount - longTextThreshold)
+        let adaptiveDelay = baseDelaySeconds + TimeInterval(extraCharacters) * additionalDelayPerCharacter
+        return min(maximumDelaySeconds, adaptiveDelay)
+    }
 }
 
 public struct DefaultPasteTimingClient: PasteTimingClient {
-    private let enterDelaySeconds: TimeInterval
+    private let delay: AdaptivePasteEnterDelay
 
-    public init(enterDelaySeconds: TimeInterval = 0.18) {
-        self.enterDelaySeconds = enterDelaySeconds
+    public init(delay: AdaptivePasteEnterDelay = AdaptivePasteEnterDelay()) {
+        self.delay = delay
     }
 
-    public func waitBeforeEnter() {
-        Thread.sleep(forTimeInterval: enterDelaySeconds)
+    public func waitBeforeEnter(characterCount: Int) {
+        Thread.sleep(forTimeInterval: delay.delaySeconds(forCharacterCount: characterCount))
     }
 }
 
@@ -58,7 +83,7 @@ public final class PasteController: Sendable {
         try clipboard.writeString(text)
         try keyboard.sendPaste()
         if mode == .pasteThenEnter {
-            timing.waitBeforeEnter()
+            timing.waitBeforeEnter(characterCount: text.count)
             try keyboard.sendEnter()
         }
     }

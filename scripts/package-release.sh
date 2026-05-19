@@ -6,7 +6,7 @@ DIST_DIR="$ROOT/dist"
 APP_NAME="API音声ソフト.app"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ROOT/Info.plist")"
 BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$ROOT/Info.plist")"
-ARTIFACT_BASE="API音声ソフト-${VERSION}-${BUILD}"
+ARTIFACT_BASE="api-voice-input-${VERSION}-${BUILD}"
 ZIP_PATH="$DIST_DIR/${ARTIFACT_BASE}.zip"
 NOTES_PATH="$DIST_DIR/${ARTIFACT_BASE}-release-notes.txt"
 
@@ -56,6 +56,9 @@ Setup:
 2. マイク権限とアクセシビリティ権限を許可
 3. メニューバーの🎙から「無料のGroq APIキーを取得」
 4. Groq APIキーを作成して「Groq APIキーを設定…」に貼り付け
+
+Changes:
+- 長文入力時は、貼り付け後の自動Enter送信を少し遅らせます。
 
 Notes:
 - アプリ独自アカウントは不要です。

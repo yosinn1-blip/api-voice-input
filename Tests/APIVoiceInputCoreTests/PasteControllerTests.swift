@@ -24,6 +24,37 @@ final class PasteControllerTests: XCTestCase {
         XCTAssertEqual(keyboard.events, [.paste, .enter])
     }
 
+
+    func testAdaptiveEnterDelayKeepsShortTextFast() {
+        let strategy = AdaptivePasteEnterDelay()
+
+        XCTAssertEqual(strategy.delaySeconds(forCharacterCount: 120), 0.18, accuracy: 0.001)
+    }
+
+    func testAdaptiveEnterDelayAddsWaitForLongerText() {
+        let strategy = AdaptivePasteEnterDelay()
+
+        XCTAssertEqual(strategy.delaySeconds(forCharacterCount: 700), 0.38, accuracy: 0.001)
+    }
+
+    func testAdaptiveEnterDelayCapsVeryLongText() {
+        let strategy = AdaptivePasteEnterDelay()
+
+        XCTAssertEqual(strategy.delaySeconds(forCharacterCount: 2_000), 0.65, accuracy: 0.001)
+    }
+
+    func testPasteThenEnterPassesCharacterCountToTiming() throws {
+        let clipboard = MockClipboard(initial: "before")
+        let keyboard = MockKeyboard()
+        let timing = MockPasteTiming()
+        let controller = PasteController(clipboard: clipboard, keyboard: keyboard, timing: timing)
+        let text = String(repeating: "長い文章です。", count: 80)
+
+        try controller.paste(text, mode: .pasteThenEnter)
+
+        XCTAssertEqual(timing.waitedCharacterCounts, [text.count])
+    }
+
     func testPasteThenEnterWaitsBetweenPasteAndEnter() throws {
         let recorder = EventRecorder()
         let clipboard = MockClipboard(initial: "before")
@@ -77,13 +108,15 @@ private final class MockKeyboard: KeyboardClient, @unchecked Sendable {
 }
 
 private final class MockPasteTiming: PasteTimingClient, @unchecked Sendable {
-    private let recorder: EventRecorder
+    private let recorder: EventRecorder?
+    var waitedCharacterCounts: [Int] = []
 
-    init(recorder: EventRecorder) {
+    init(recorder: EventRecorder? = nil) {
         self.recorder = recorder
     }
 
-    func waitBeforeEnter() {
-        recorder.events.append("wait")
+    func waitBeforeEnter(characterCount: Int) {
+        waitedCharacterCounts.append(characterCount)
+        recorder?.events.append("wait")
     }
 }
