@@ -36,10 +36,9 @@ struct MediaRemotePauseController {
 
     func sendPause() -> Bool {
         guard let symbol = Library.shared.symbol("MRMediaRemoteSendCommand") else { return false }
-        typealias SendCommand = @convention(c) (Int32, CFDictionary?) -> Void
+        typealias SendCommand = @convention(c) (Int32, CFDictionary?) -> Bool
         let function = unsafeBitCast(symbol, to: SendCommand.self)
-        function(1, nil) // 1 is the MediaRemote pause command; not play/pause toggle.
-        return true
+        return function(1, nil) // 1 is the MediaRemote pause command; not play/pause toggle.
     }
 
     private func nowPlayingDisplayID(timeoutSeconds: Double) -> String? {

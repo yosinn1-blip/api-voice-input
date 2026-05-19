@@ -139,11 +139,12 @@ struct YouTubePauseController {
         let controller = MediaRemotePauseController()
         let snapshot = controller.snapshot()
         DebugLog.write("youtube pause media-remote snapshot displayID=\(snapshot.displayID ?? "nil") isPlaying=\(snapshot.isPlaying.map(String.init) ?? "nil") target=\(target.bundleIdentifier)")
-        guard snapshot.displayID == target.bundleIdentifier, snapshot.isPlaying == true else {
+        let shouldSendPause = snapshot.displayID == target.bundleIdentifier || snapshot.displayID == nil
+        guard shouldSendPause else {
             return false
         }
         let sent = controller.sendPause()
-        DebugLog.write("youtube pause fallback=media-remote-pause browser=\(target.name) sent=\(sent)")
+        DebugLog.write("youtube pause fallback=media-remote-pause browser=\(target.name) sent=\(sent) guardedDisplayID=\(snapshot.displayID ?? "nil")")
         return sent
     }
 
