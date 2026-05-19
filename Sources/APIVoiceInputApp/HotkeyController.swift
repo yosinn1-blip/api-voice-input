@@ -4,6 +4,7 @@ import Foundation
 
 final class HotkeyController {
     private var hotKeyRef: EventHotKeyRef?
+    private var f19HotKeyRef: EventHotKeyRef?
     private var handler: EventHandlerRef?
     private var fnEventTap: CFMachPort?
     private var fnRunLoopSource: CFRunLoopSource?
@@ -27,6 +28,11 @@ final class HotkeyController {
 
         let hotKeyID = EventHotKeyID(signature: OSType(0x4156494E), id: 1)
         RegisterEventHotKey(UInt32(kVK_Space), UInt32(cmdKey | shiftKey), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
+    }
+
+    func registerF19Bridge() {
+        let hotKeyID = EventHotKeyID(signature: OSType(0x4156494E), id: 2)
+        RegisterEventHotKey(UInt32(kVK_F19), 0, hotKeyID, GetApplicationEventTarget(), 0, &f19HotKeyRef)
     }
 
     @discardableResult
@@ -71,6 +77,9 @@ final class HotkeyController {
     deinit {
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
+        }
+        if let f19HotKeyRef {
+            UnregisterEventHotKey(f19HotKeyRef)
         }
         if let handler {
             RemoveEventHandler(handler)

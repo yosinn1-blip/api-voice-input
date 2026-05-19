@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in self?.toggleRecording() }
         }
         hotkeyController?.registerCommandShiftSpace()
+        hotkeyController?.registerF19Bridge()
         let fnRegistered = hotkeyController?.registerFnKey() ?? false
         if fnRegistered == false {
             overlay.show(.failed, detail: "Fn検出にはアクセシビリティ権限が必要です")
@@ -49,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             _ = try recorder.startRecording()
             isRecording = true
-            overlay.show(.recording, detail: "Fn / ⌘⇧Spaceで停止")
+            overlay.show(.recording, detail: "Fn / F19 / ⌘⇧Spaceで停止")
         } catch {
             overlay.show(.failed, detail: error.localizedDescription)
         }

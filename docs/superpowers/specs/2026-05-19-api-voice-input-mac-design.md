@@ -254,3 +254,10 @@ Everything else should wait until the loop feels good.
 - Build verification: `swift test`, `swift build`, `./scripts/build-app.sh`, `plutil -lint Info.plist`, and `codesign --verify --deep --strict build/API音声ソフト.app` passed.
 - Launch smoke: app process launched successfully after the Fn change and was quit.
 - Manual check still needed: press physical `Fn` in TextEdit to confirm start/stop on the user's keyboard and current Accessibility/Input Monitoring permissions.
+
+## Fn Karabiner bridge verification note
+
+- Root cause: existing Karabiner voice-input rules were already capturing `Fn`, so the app's direct Fn event tap could be bypassed.
+- Change: the app now also registers `F19` as a hidden recording toggle. `/Users/yoshiki/.local/bin/voice-input-mode api-voice` maps physical `Fn` to `F19` through Karabiner.
+- Active mode after this change: `api-voice`, description `Voice input mode: API音声ソフト — Fn sends F19`.
+- Fallback: `Command+Shift+Space` still toggles recording even if Karabiner is disabled.
