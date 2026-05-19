@@ -41,11 +41,11 @@ final class RecorderController: NSObject, AVAudioRecorderDelegate {
     }
 
     private static func normalizedLevel(averagePower: Float, peakPower: Float) -> Double {
-        let floorDB: Float = -58
-        let ceilingDB: Float = -8
-        let weightedPower = max(averagePower, peakPower - 10)
+        let floorDB: Float = -64
+        let ceilingDB: Float = -16
+        let weightedPower = max(averagePower, peakPower - 8)
         let clamped = min(max(weightedPower, floorDB), ceilingDB)
         let linear = (clamped - floorDB) / (ceilingDB - floorDB)
-        return Double(pow(linear, 0.72))
+        return Double(pow(linear, 0.58))
     }
 }

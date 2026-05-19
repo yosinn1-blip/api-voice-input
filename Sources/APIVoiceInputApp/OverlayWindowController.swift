@@ -114,6 +114,7 @@ private final class WaveformView: NSView {
     private var targetLevel: CGFloat = 0
     private var displayedLevel: CGFloat = 0
     private let barCount = 15
+    private var levelHistory = Array(repeating: CGFloat(0), count: 15)
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -132,7 +133,10 @@ private final class WaveformView: NSView {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.phase += 0.22
-                self.displayedLevel += (self.targetLevel - self.displayedLevel) * 0.34
+                let attack: CGFloat = self.targetLevel > self.displayedLevel ? 0.58 : 0.24
+                self.displayedLevel += (self.targetLevel - self.displayedLevel) * attack
+                self.levelHistory.removeFirst()
+                self.levelHistory.append(self.displayedLevel)
                 self.needsDisplay = true
             }
         }
@@ -150,6 +154,7 @@ private final class WaveformView: NSView {
         phase = 0
         targetLevel = 0
         displayedLevel = 0
+        levelHistory = Array(repeating: CGFloat(0), count: barCount)
         needsDisplay = true
     }
 
@@ -161,17 +166,15 @@ private final class WaveformView: NSView {
         let gap = (bounds.width - CGFloat(barCount) * barWidth) / CGFloat(max(barCount - 1, 1))
         let midY = bounds.midY
         let maxHeight = bounds.height - 2
-        let levelScale = 0.18 + min(max(displayedLevel, 0), 1) * 0.82
         let color = NSColor.white.withAlphaComponent(0.92)
         color.setFill()
 
         for index in 0..<barCount {
             let x = CGFloat(index) * (barWidth + gap)
-            let wave = sin(phase + CGFloat(index) * 0.72)
-            let secondary = sin(phase * 0.58 + CGFloat(index) * 1.31)
-            let normalized = (wave * 0.62 + secondary * 0.38 + 1) / 2
-            let barShape = 0.25 + normalized * 0.75
-            let height = max(2.5, barShape * maxHeight * levelScale)
+            let sample = min(max(levelHistory[index], 0), 1)
+            let liveRipple = 0.05 * (sin(phase + CGFloat(index) * 0.9) + 1) / 2
+            let level = min(1, sample + liveRipple)
+            let height = max(2.0, (0.10 + level * 0.90) * maxHeight)
             let rect = NSRect(x: x, y: midY - height / 2, width: barWidth, height: height)
             NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         }
