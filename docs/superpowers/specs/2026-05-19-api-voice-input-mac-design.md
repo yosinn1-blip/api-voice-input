@@ -282,3 +282,9 @@ Everything else should wait until the loop feels good.
 - Fix: before paste, the app now logs `accessibilityTrusted=<true/false>` and shows `貼り付け中 · クリップボードへ保存`.
 - If Accessibility is not trusted, the app does not pretend paste succeeded. It writes the final text to clipboard, shows `アクセシビリティ権限が必要・文字はクリップボード`, and logs that paste was skipped.
 - If Accessibility is trusted, the app sends paste and logs `paste command sent`.
+
+## Accessibility permission prompt and fixed install path
+
+- The app now calls `AXIsProcessTrustedWithOptions` with the system prompt option when Accessibility is missing.
+- A fixed copy is installed to `~/Applications/API音声ソフト.app` so macOS TCC permissions are less likely to break when the build directory is regenerated.
+- Recommended launch path for manual testing: `~/Applications/API音声ソフト.app`.

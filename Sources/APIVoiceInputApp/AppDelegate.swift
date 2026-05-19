@@ -32,7 +32,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if fnRegistered == false {
             overlay.show(.failed, detail: "Fn検出にはアクセシビリティ権限が必要です")
         }
+        requestAccessibilityPermissionIfNeeded()
         requestMicrophonePermission()
+    }
+
+    private func requestAccessibilityPermissionIfNeeded() {
+        guard AXIsProcessTrusted() == false else {
+            DebugLog.write("accessibility already trusted")
+            return
+        }
+        DebugLog.write("accessibility not trusted; requesting prompt")
+        overlay.show(.failed, detail: "アクセシビリティ権限を許可してください")
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
     }
 
     private func requestMicrophonePermission() {
