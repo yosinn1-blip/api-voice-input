@@ -25,10 +25,11 @@ final class OverlayWindowController {
         contentView.wantsLayer = true
         contentView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.82).cgColor
         contentView.layer?.cornerRadius = 14
+        contentView.layer?.masksToBounds = true
         contentView.layer?.borderWidth = 1
         contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.35).cgColor
-        contentView.addSubview(waveformView)
         contentView.addSubview(progressView)
+        contentView.addSubview(waveformView)
 
         NSLayoutConstraint.activate([
             waveformView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
@@ -36,10 +37,10 @@ final class OverlayWindowController {
             waveformView.widthAnchor.constraint(equalToConstant: 88),
             waveformView.heightAnchor.constraint(equalToConstant: 18),
 
-            progressView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            progressView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            progressView.widthAnchor.constraint(equalToConstant: 92),
-            progressView.heightAnchor.constraint(equalToConstant: 6)
+            progressView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            progressView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            progressView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            progressView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
 
         window = NSWindow(
@@ -200,27 +201,29 @@ private final class ProcessingGaugeView: NSView {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let trackRect = bounds.insetBy(dx: 0, dy: max(0, (bounds.height - 4) / 2))
-        NSColor.white.withAlphaComponent(0.20).setFill()
-        NSBezierPath(roundedRect: trackRect, xRadius: trackRect.height / 2, yRadius: trackRect.height / 2).fill()
-
         guard timer != nil else { return }
 
-        let segmentWidth = bounds.width * 0.58
-        let travel = bounds.width - segmentWidth
-        let x = trackRect.minX + phase * travel
-        let segmentRect = NSRect(x: x, y: trackRect.minY, width: segmentWidth, height: trackRect.height)
-        NSColor.white.withAlphaComponent(0.88).setFill()
-        NSBezierPath(roundedRect: segmentRect, xRadius: segmentRect.height / 2, yRadius: segmentRect.height / 2).fill()
+        let lineWidth: CGFloat = 13
+        let glowWidth: CGFloat = 34
+        let travel = bounds.width + glowWidth
+        let centerX = phase * travel - glowWidth / 2
 
-        let leadingDotSize = trackRect.height + 2
-        let leadingDotRect = NSRect(
-            x: min(trackRect.maxX - leadingDotSize, segmentRect.maxX - leadingDotSize),
-            y: trackRect.midY - leadingDotSize / 2,
-            width: leadingDotSize,
-            height: leadingDotSize
+        let glowRect = NSRect(
+            x: centerX - glowWidth / 2,
+            y: 0,
+            width: glowWidth,
+            height: bounds.height
         )
-        NSColor.white.withAlphaComponent(1.0).setFill()
-        NSBezierPath(ovalIn: leadingDotRect).fill()
+        NSColor.white.withAlphaComponent(0.16).setFill()
+        NSBezierPath(rect: glowRect).fill()
+
+        let lineRect = NSRect(
+            x: centerX - lineWidth / 2,
+            y: 3,
+            width: lineWidth,
+            height: bounds.height - 6
+        )
+        NSColor.white.withAlphaComponent(0.72).setFill()
+        NSBezierPath(roundedRect: lineRect, xRadius: lineWidth / 2, yRadius: lineWidth / 2).fill()
     }
 }

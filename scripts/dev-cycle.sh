@@ -49,7 +49,8 @@ if ! /usr/bin/pgrep -x APIVoiceInputApp >/dev/null 2>&1; then
   echo "ERROR: APIVoiceInputApp is not running" >&2
   exit 1
 fi
-/usr/bin/pgrep -fl APIVoiceInputApp || true
+APP_PID="$(/usr/bin/pgrep -x APIVoiceInputApp | /usr/bin/head -n 1)"
+/bin/ps -p "$APP_PID" -o pid=,command=
 
 /bin/sleep 1.0
 
