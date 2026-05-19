@@ -197,12 +197,16 @@ private final class WaveformView: NSView {
         NSColor.white.withAlphaComponent(0.14).setStroke()
         baseline.stroke()
 
+        var points: [NSPoint] = []
+        points.reserveCapacity(waveformHistory.count)
+
         let glowPath = NSBezierPath()
         let linePath = NSBezierPath()
         for (index, sample) in waveformHistory.enumerated() {
             let x = horizontalInset + CGFloat(index) * step
             let y = midY - sample * amplitude
             let point = NSPoint(x: x, y: y)
+            points.append(point)
             if index == 0 {
                 glowPath.move(to: point)
                 linePath.move(to: point)
@@ -214,15 +218,24 @@ private final class WaveformView: NSView {
 
         glowPath.lineJoinStyle = .round
         glowPath.lineCapStyle = .round
-        glowPath.lineWidth = 4.6
-        NSColor.white.withAlphaComponent(0.12).setStroke()
+        glowPath.lineWidth = 4.2
+        NSColor.white.withAlphaComponent(0.10).setStroke()
         glowPath.stroke()
 
         linePath.lineJoinStyle = .round
         linePath.lineCapStyle = .round
-        linePath.lineWidth = 2.0
-        NSColor.white.withAlphaComponent(0.92).setStroke()
+        linePath.lineWidth = 1.65
+        NSColor.white.withAlphaComponent(0.82).setStroke()
         linePath.stroke()
+
+        for (index, point) in points.enumerated() where index % 3 == 0 || index == points.count - 1 {
+            let recency = CGFloat(index) / CGFloat(max(points.count - 1, 1))
+            let radius = index == points.count - 1 ? CGFloat(2.05) : CGFloat(1.35 + recency * 0.30)
+            let alpha = index == points.count - 1 ? CGFloat(0.96) : CGFloat(0.32 + recency * 0.38)
+            NSColor.white.withAlphaComponent(alpha).setFill()
+            let dotRect = NSRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
+            NSBezierPath(ovalIn: dotRect).fill()
+        }
     }
 }
 
