@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API音声ソフト | Mac向けAI音声入力</title>
+  <meta name="description" content="API音声ソフトは、Fnで録音してAIチャットに素早く貼り付けるMac向けメニューバー音声入力アプリです。Groq Whisperを使います。">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f4ef;
+      --card: rgba(255,255,255,.78);
+      --text: #171717;
+      --muted: #626262;
+      --line: rgba(0,0,0,.10);
+      --accent: #111;
+      --accentText: #fff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111111;
+        --card: rgba(255,255,255,.08);
+        --text: #f4f4f4;
+        --muted: #b8b8b8;
+        --line: rgba(255,255,255,.14);
+        --accent: #f3f3f3;
+        --accentText: #111;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif;
+      background: radial-gradient(circle at top, rgba(255,255,255,.85), transparent 34rem), var(--bg);
+      color: var(--text);
+      line-height: 1.75;
+    }
+    main { max-width: 920px; margin: 0 auto; padding: 56px 20px 72px; }
+    .hero { padding: 44px 0 32px; }
+    .eyebrow { color: var(--muted); font-size: 14px; letter-spacing: .06em; }
+    h1 { font-size: clamp(34px, 7vw, 64px); line-height: 1.05; margin: 14px 0 18px; letter-spacing: -.05em; }
+    .lead { font-size: clamp(17px, 2.6vw, 22px); color: var(--muted); max-width: 720px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 18px; border-radius: 999px; text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--card); }
+    .button.primary { background: var(--accent); color: var(--accentText); border-color: transparent; }
+    .pill-demo { margin: 34px 0 8px; display: inline-flex; align-items: center; justify-content: center; width: 136px; height: 36px; border-radius: 18px; background: #070707; box-shadow: 0 10px 30px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255,255,255,.12); }
+    .bars { display: flex; gap: 4px; align-items: center; height: 20px; }
+    .bars span { display:block; width:3px; border-radius:999px; background:rgba(255,255,255,.9); animation: pulse 950ms ease-in-out infinite; }
+    .bars span:nth-child(1), .bars span:nth-child(9) { height: 4px; opacity:.7; animation-delay:-80ms; }
+    .bars span:nth-child(2), .bars span:nth-child(8) { height: 8px; animation-delay:-140ms; }
+    .bars span:nth-child(3), .bars span:nth-child(7) { height: 13px; animation-delay:-210ms; }
+    .bars span:nth-child(4), .bars span:nth-child(6) { height: 18px; animation-delay:-280ms; }
+    .bars span:nth-child(5) { height: 20px; animation-delay:-350ms; }
+    @keyframes pulse { 0%,100% { transform: scaleY(.52); } 50% { transform: scaleY(1); } }
+    .grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 28px 0; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 22px; backdrop-filter: blur(18px); }
+    .card h2, .card h3 { margin-top: 0; line-height: 1.25; }
+    .card p, li { color: var(--muted); }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .95em; padding: .12em .34em; border-radius: 6px; background: rgba(127,127,127,.14); }
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps li { counter-increment: step; margin: 0 0 12px; padding-left: 38px; position: relative; }
+    .steps li::before { content: counter(step); position:absolute; left:0; top:.1em; width:24px; height:24px; border-radius:50%; display:grid; place-items:center; background:var(--accent); color:var(--accentText); font-size:13px; line-height:1; }
+    footer { color: var(--muted); font-size: 14px; padding-top: 28px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } main { padding-top: 28px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Mac menu bar voice input for AI</div>
+      <h1>AIに話しかけるための<br>小さな音声入力アプリ</h1>
+      <p class="lead">API音声ソフトは、<code>Fn</code>で録音して、ChatGPT / Claude / Codex などの入力欄へ素早く貼り付けるMac向けメニューバーアプリです。</p>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.0/api-voice-input-0.1.0-1.zip">最新版をダウンロード</a>
+        <a class="button" href="https://github.com/yosinn1-blip/api-voice-input">GitHubを見る</a>
+      </div>
+      <div class="pill-demo" aria-label="録音中の小さな波形インジケーター">
+        <div class="bars"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      </div>
+      <p class="eyebrow">起動しても通常のウィンドウは開きません。画面上部のメニューバーに <code>🎙</code> が表示されます。</p>
+    </section>
+
+    <section class="grid">
+      <div class="card"><h3>速い</h3><p>Groq Whisper <code>whisper-large-v3-turbo</code> を使い、AIへの入力を待たせない体験を重視しています。</p></div>
+      <div class="card"><h3>シンプル</h3><p>大きな編集画面はありません。入力欄をクリックして、<code>Fn</code>、話す、<code>Enter</code> の流れです。</p></div>
+      <div class="card"><h3>自分のAPIキー</h3><p>アプリ独自アカウントは不要です。ユーザー自身のGroq APIキーをmacOS Keychainに保存します。</p></div>
+    </section>
+
+    <section class="card">
+      <h2>使い方</h2>
+      <ol class="steps">
+        <li>ZIPを展開して <code>API音声ソフト.app</code> を開きます。</li>
+        <li>初回起動時にマイク権限とアクセシビリティ権限を許可します。</li>
+        <li>メニューバーの <code>🎙</code> から <code>無料のGroq APIキーを取得</code> を開きます。</li>
+        <li>作成したGroq APIキーを <code>Groq APIキーを設定…</code> に貼り付けます。</li>
+        <li>AIチャットなどの入力欄をクリックし、<code>Fn</code> で録音、話し終えたら <code>Enter</code> で貼り付け・送信します。</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>注意</h2>
+      <p>現時点のMVPはnotarize済みではありません。初回起動時にmacOSのGatekeeper警告が出る場合は、Finderで右クリックして「開く」を選んでください。</p>
+      <p>録音音声は文字起こしのためGroq APIへ送信されます。詳しくはGitHub上の <a href="https://github.com/yosinn1-blip/api-voice-input/blob/main/PRIVACY.md">PRIVACY.md</a> を確認してください。</p>
+    </section>
+
+    <footer>
+      <p>© Yoshiki. API音声ソフト v0.1.0</p>
+    </footer>
+  </main>
+</body>
+</html>

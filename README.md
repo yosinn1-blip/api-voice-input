@@ -16,6 +16,8 @@ ChatGPT / Claude / Codex などの入力欄に、`Fn → 話す → Enter` の�
 
 ## ダウンロード
 
+使い方ページ: https://yosinn1-blip.github.io/api-voice-input/
+
 最新版はGitHub Releasesからダウンロードできます。
 
 - https://github.com/yosinn1-blip/api-voice-input/releases
