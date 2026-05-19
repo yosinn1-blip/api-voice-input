@@ -115,9 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let emptyGuard = EmptyUtteranceGuard()
             if emptyGuard.shouldSkipTranscription(activity: activity) {
                 DebugLog.write("process canceled empty audio before transcription")
-                overlay.show(.canceled, detail: "貼り付けなし")
                 try? FileManager.default.removeItem(at: audioURL)
-                try? await Task.sleep(nanoseconds: 900_000_000)
                 overlay.hide()
                 return
             }
@@ -135,9 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")
             if emptyGuard.shouldSuppressTranscript(result.finalText, activity: activity) {
                 DebugLog.write("process canceled common silence hallucination transcript=\(result.finalText)")
-                overlay.show(.canceled, detail: "誤認識を破棄")
                 try? FileManager.default.removeItem(at: audioURL)
-                try? await Task.sleep(nanoseconds: 900_000_000)
                 overlay.hide()
                 return
             }
