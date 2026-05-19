@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let recorder = RecorderController()
     private let youTubePauseController = YouTubePauseController()
     private var isRecording = false
+    private var isStartingRecording = false
     private var audioLevelTimer: Timer?
     private var youTubeAudioSnapshot: YouTubePauseController.SystemAudioSnapshot?
     private var maxRecordingLevel: Double = 0
@@ -64,7 +65,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func toggleRecording(source: String) {
-        DebugLog.write("toggle source=\(source) isRecording=\(isRecording)")
+        DebugLog.write("toggle source=\(source) isRecording=\(isRecording) isStarting=\(isStartingRecording)")
+        if isStartingRecording {
+            DebugLog.write("toggle ignored while recording startup is in progress source=\(source)")
+            return
+        }
         if isRecording {
             finishRecording(source: source)
         } else {
@@ -73,21 +78,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startRecording(source: String) {
+        let startTime = Date()
+        isStartingRecording = true
         DebugLog.write("startRecording requested source=\(source)")
+        overlay.show(.recording, detail: "Enterで停止して送信")
         do {
             youTubeAudioSnapshot = youTubePauseController.prepareYouTubeBeforeRecording()
             _ = try recorder.startRecording()
+            isStartingRecording = false
             isRecording = true
             hotkeyController?.setRecordingActive(true)
             maxRecordingLevel = 0
-            DebugLog.write("startRecording ok url=\(recorder.currentURL?.path ?? "nil")")
-            overlay.show(.recording, detail: "Enterで停止して送信")
+            DebugLog.write(String(format: "startRecording ok elapsed=%.3fs url=%@", Date().timeIntervalSince(startTime), recorder.currentURL?.path ?? "nil"))
             startAudioLevelUpdates()
         } catch {
             youTubePauseController.restoreSystemAudioIfNeeded(youTubeAudioSnapshot)
             youTubeAudioSnapshot = nil
+            isStartingRecording = false
+            isRecording = false
             hotkeyController?.setRecordingActive(false)
-            DebugLog.write("startRecording failed error=\(error.localizedDescription)")
+            DebugLog.write(String(format: "startRecording failed elapsed=%.3fs error=%@", Date().timeIntervalSince(startTime), error.localizedDescription))
             overlay.show(.failed, detail: "録音開始失敗: \(error.localizedDescription)")
         }
     }
