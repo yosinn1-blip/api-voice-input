@@ -240,3 +240,9 @@ Everything else should wait until the loop feels good.
 - Paid fallback: not enabled
 - API key storage helper: `/Users/yoshiki/api音声ソフト/scripts/set-groq-key.sh` stores the Groq key in macOS Keychain without writing it to repository files
 - Manual target still remaining: TextEdit blank document with real Groq key set, verifying hotkey -> recording overlay -> stop -> Groq STT -> paste
+
+## MVP launch smoke verification
+
+- Command: `open -g build/API音声ソフト.app`
+- Result: `APIVoiceInputApp` process launched successfully and was then quit.
+- Keychain state during smoke test: Groq API key was not present, so real STT/paste flow was intentionally not run.
