@@ -288,3 +288,11 @@ Everything else should wait until the loop feels good.
 - The app now calls `AXIsProcessTrustedWithOptions` with the system prompt option when Accessibility is missing.
 - A fixed copy is installed to `~/Applications/API音声ソフト.app` so macOS TCC permissions are less likely to break when the build directory is regenerated.
 - Recommended launch path for manual testing: `~/Applications/API音声ソフト.app`.
+
+## Keychain prompt removal for development builds
+
+- Problem: Keychain kept prompting for `com.yoshiki.APIVoiceInput` even after adding trusted application paths, likely because the app is ad-hoc signed and copied/rebuilt during development.
+- Development fix: the app now reads `GROQ_API_KEY` from `~/Library/Application Support/APIVoiceInput/secrets.env` first, avoiding Keychain access during transcription.
+- File permissions: `~/Library/Application Support/APIVoiceInput` is `700`, and `secrets.env` is `600`.
+- Helper: `scripts/set-groq-key-file.sh` writes this file via a hidden macOS prompt.
+- Production note: a stable Developer ID signature or a first-run in-app secret flow can move this back to Keychain later.

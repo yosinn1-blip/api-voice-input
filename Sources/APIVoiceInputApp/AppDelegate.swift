@@ -10,7 +10,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyController: HotkeyController?
     private let overlay = OverlayWindowController()
     private let recorder = RecorderController()
-    private let keychain = KeychainStore()
     private var isRecording = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -117,8 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
-            let groqKey = try keychain.loadAPIKey(account: AppSettings.groqKeyAccount)
-            guard let groqKey, groqKey.isEmpty == false else {
+            guard let groqKey = APIKeyStore.loadGroqAPIKey(), groqKey.isEmpty == false else {
                 DebugLog.write("process failed missing Groq API key")
                 overlay.show(.failed, detail: "Groq API key未設定")
                 return
