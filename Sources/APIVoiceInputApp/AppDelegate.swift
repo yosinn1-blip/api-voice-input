@@ -15,12 +15,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isStartingRecording = false
     private var audioLevelTimer: Timer?
     private var youTubeAudioSnapshot: YouTubePauseController.SystemAudioSnapshot?
+    private var recordingSessionID: UUID?
     private var maxRecordingLevel: Double = 0
 
 
     func applicationWillTerminate(_ notification: Notification) {
         youTubePauseController.restoreSystemAudioIfNeeded(youTubeAudioSnapshot)
         youTubeAudioSnapshot = nil
+        recordingSessionID = nil
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -162,12 +164,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleRecording(source: String) {
         DebugLog.write("toggle source=\(source) isRecording=\(isRecording) isStarting=\(isStartingRecording)")
-        if isStartingRecording {
-            DebugLog.write("toggle ignored while recording startup is in progress source=\(source)")
-            return
-        }
         if isRecording {
             finishRecording(source: source)
+        } else if isStartingRecording {
+            DebugLog.write("toggle ignored before recorder became active source=\(source)")
         } else {
             startRecording(source: source)
         }
@@ -175,16 +175,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startRecording(source: String) {
         let startTime = Date()
+        let sessionID = UUID()
         isStartingRecording = true
-        DebugLog.write("startRecording requested source=\(source)")
+        recordingSessionID = sessionID
+        youTubeAudioSnapshot = nil
+        DebugLog.write("startRecording requested source=\(source) session=\(sessionID.uuidString)")
         overlay.show(.recording, detail: "Enterで停止して送信")
         do {
-            if RecordingBehaviorSettings.shouldPrepareMediaBeforeRecording(mediaControlEnabled: mediaControlEnabled()) {
-                youTubeAudioSnapshot = youTubePauseController.prepareYouTubeBeforeRecording()
-            } else {
-                youTubeAudioSnapshot = nil
-                DebugLog.write("youtube pause skipped media-control-disabled")
-            }
             _ = try recorder.startRecording()
             isStartingRecording = false
             isRecording = true
@@ -192,7 +189,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             maxRecordingLevel = 0
             DebugLog.write(String(format: "startRecording ok elapsed=%.3fs url=%@", Date().timeIntervalSince(startTime), recorder.currentURL?.path ?? "nil"))
             startAudioLevelUpdates()
+            prepareMediaAfterRecordingStartIfNeeded(sessionID: sessionID)
         } catch {
+            recordingSessionID = nil
             youTubePauseController.restoreSystemAudioIfNeeded(youTubeAudioSnapshot)
             youTubeAudioSnapshot = nil
             isStartingRecording = false
@@ -200,6 +199,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hotkeyController?.setRecordingActive(false)
             DebugLog.write(String(format: "startRecording failed elapsed=%.3fs error=%@", Date().timeIntervalSince(startTime), error.localizedDescription))
             overlay.show(.failed, detail: "録音開始失敗: \(error.localizedDescription)")
+        }
+    }
+
+    private func prepareMediaAfterRecordingStartIfNeeded(sessionID: UUID) {
+        guard RecordingBehaviorSettings.shouldPrepareMediaBeforeRecording(mediaControlEnabled: mediaControlEnabled()) else {
+            DebugLog.write("youtube pause skipped media-control-disabled")
+            return
+        }
+
+        DebugLog.write("youtube pause prepare async begin session=\(sessionID.uuidString)")
+        DispatchQueue.global(qos: .userInitiated).async {
+            let snapshot = YouTubePauseController().prepareYouTubeBeforeRecording()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {
+                    YouTubePauseController().restoreSystemAudioIfNeeded(snapshot)
+                    return
+                }
+                guard self.recordingSessionID == sessionID, self.isRecording else {
+                    YouTubePauseController().restoreSystemAudioIfNeeded(snapshot)
+                    DebugLog.write("youtube pause prepare async discarded session=\(sessionID.uuidString)")
+                    return
+                }
+                self.youTubeAudioSnapshot = snapshot
+                DebugLog.write("youtube pause prepare async complete session=\(sessionID.uuidString) snapshot=\(snapshot == nil ? "nil" : "system-audio")")
+            }
         }
     }
 
@@ -211,28 +235,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func finishRecording(source: String) {
         DebugLog.write("finishRecording requested source=\(source)")
         stopAudioLevelUpdates()
-        DebugLog.write(String(format: "recordingLevel max=%.3f", maxRecordingLevel))
+        let recordingLevel = maxRecordingLevel
+        let shouldHideImmediately = RecordingStopPresentation.shouldHideOverlayImmediately(maxRecordingLevel: recordingLevel, stopSource: source)
+        let shouldCancelTranscription = RecordingStopPresentation.shouldCancelTranscription(stopSource: source)
+        let pasteMode = RecordingStopPresentation.pasteMode(stopSource: source)
+        DebugLog.write(String(format: "recordingLevel max=%.3f quickHide=%@ cancelTranscription=%@ pasteMode=%@", recordingLevel, shouldHideImmediately ? "true" : "false", shouldCancelTranscription ? "true" : "false", pasteMode.rawValue))
+        let audioSnapshot = youTubeAudioSnapshot
+        youTubeAudioSnapshot = nil
+        recordingSessionID = nil
         guard let audioURL = recorder.stopRecording() else {
-            youTubePauseController.restoreSystemAudioIfNeeded(youTubeAudioSnapshot)
-            youTubeAudioSnapshot = nil
             isRecording = false
             hotkeyController?.setRecordingActive(false)
+            if shouldHideImmediately {
+                overlay.hide()
+            } else {
+                overlay.show(.failed, detail: "録音ファイルなし")
+            }
+            DispatchQueue.main.async { [youTubePauseController] in
+                youTubePauseController.restoreSystemAudioIfNeeded(audioSnapshot)
+            }
             DebugLog.write("finishRecording failed no audioURL")
-            overlay.show(.failed, detail: "録音ファイルなし")
             return
         }
-        youTubePauseController.restoreSystemAudioIfNeeded(youTubeAudioSnapshot)
-        youTubeAudioSnapshot = nil
         isRecording = false
         hotkeyController?.setRecordingActive(false)
+        if shouldHideImmediately {
+            overlay.hide()
+            DebugLog.write("finishRecording quick-hide overlay")
+        } else {
+            overlay.show(.transcribing)
+        }
+        DispatchQueue.main.async { [youTubePauseController] in
+            youTubePauseController.restoreSystemAudioIfNeeded(audioSnapshot)
+        }
         DebugLog.write("finishRecording ok url=\(audioURL.path)")
-        overlay.show(.transcribing)
+        if shouldCancelTranscription {
+            try? FileManager.default.removeItem(at: audioURL)
+            DebugLog.write("finishRecording canceled transcription source=\(source)")
+            return
+        }
         Task {
-            await process(audioURL: audioURL)
+            await process(audioURL: audioURL, overlayVisible: shouldHideImmediately == false, pasteMode: pasteMode, stopSource: source)
         }
     }
 
-    private func process(audioURL: URL) async {
+    private func process(audioURL: URL, overlayVisible: Bool, pasteMode: PasteMode, stopSource: String) async {
         do {
             let activity = try AudioActivityAnalyzer().analyze(audioFileURL: audioURL)
             DebugLog.write(
@@ -244,11 +291,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             )
             let emptyGuard = EmptyUtteranceGuard()
-            if emptyGuard.shouldSkipTranscription(activity: activity) {
-                DebugLog.write("process canceled empty audio before transcription")
+            if emptyGuard.shouldSkipTranscription(activity: activity)
+                || RecordingStopPresentation.shouldSkipTranscription(activity: activity, stopSource: stopSource) {
+                DebugLog.write("process canceled empty audio before transcription source=\(stopSource)")
                 try? FileManager.default.removeItem(at: audioURL)
-                overlay.hide()
+                if overlayVisible {
+                    overlay.hide()
+                }
                 return
+            }
+            if overlayVisible == false {
+                overlay.show(.transcribing)
             }
 
             guard let groqKey = APIKeyStore.loadGroqAPIKey(), groqKey.isEmpty == false else {
@@ -256,7 +309,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 overlay.show(.failed, detail: "Groq API key未設定")
                 return
             }
-            let profile = VoiceProfile.defaultJapanese
+            var profile = VoiceProfile.defaultJapanese
+            profile.pasteMode = pasteMode
             let transcription = GroqTranscriptionProvider(apiKey: groqKey)
             let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: FillerRemovalCleanupProvider())
             DebugLog.write("process transcription begin")
