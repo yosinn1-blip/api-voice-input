@@ -23,11 +23,11 @@ final class OverlayWindowController {
         let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         contentView.wantsLayer = true
-        contentView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.82).cgColor
+        contentView.layer?.backgroundColor = NSColor(calibratedWhite: 0.10, alpha: 0.74).cgColor
         contentView.layer?.cornerRadius = 14
         contentView.layer?.masksToBounds = true
         contentView.layer?.borderWidth = 1
-        contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.35).cgColor
+        contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
         contentView.addSubview(progressView)
         contentView.addSubview(waveformView)
 
@@ -201,47 +201,46 @@ private final class ProcessingGaugeView: NSView {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let trackInset: CGFloat = 18
-        let trackHeight: CGFloat = 3
-        let trackRect = NSRect(
-            x: bounds.minX + trackInset,
-            y: bounds.midY - trackHeight / 2,
-            width: max(1, bounds.width - trackInset * 2),
-            height: trackHeight
-        )
-        NSColor.white.withAlphaComponent(0.22).setFill()
-        NSBezierPath(
-            roundedRect: trackRect,
-            xRadius: trackHeight / 2,
-            yRadius: trackHeight / 2
-        ).fill()
-
         guard timer != nil else { return }
 
-        let highlightWidth: CGFloat = 30
-        let travel = max(1, trackRect.width - highlightWidth)
-        let highlightX = trackRect.minX + phase * travel
+        let bandWidth = bounds.width * 0.52
+        let travel = bounds.width + bandWidth
+        let bandX = phase * travel - bandWidth
 
-        let glowRect = NSRect(
-            x: highlightX - 8,
-            y: trackRect.midY - 5,
-            width: highlightWidth + 16,
-            height: 10
+        let leadingRect = NSRect(
+            x: bandX - bandWidth * 0.45,
+            y: 0,
+            width: bandWidth * 0.45,
+            height: bounds.height
         )
-        NSColor.white.withAlphaComponent(0.14).setFill()
-        NSBezierPath(roundedRect: glowRect, xRadius: 5, yRadius: 5).fill()
+        NSColor(calibratedWhite: 0.68, alpha: 0.08).setFill()
+        NSBezierPath(rect: leadingRect).fill()
 
-        let highlightRect = NSRect(
-            x: highlightX,
-            y: trackRect.minY,
-            width: highlightWidth,
-            height: trackRect.height
+        let bandRect = NSRect(
+            x: bandX,
+            y: 0,
+            width: bandWidth,
+            height: bounds.height
         )
-        NSColor.white.withAlphaComponent(0.88).setFill()
-        NSBezierPath(
-            roundedRect: highlightRect,
-            xRadius: trackHeight / 2,
-            yRadius: trackHeight / 2
-        ).fill()
+        NSColor(calibratedWhite: 0.72, alpha: 0.23).setFill()
+        NSBezierPath(rect: bandRect).fill()
+
+        let coreRect = NSRect(
+            x: bandX + bandWidth * 0.42,
+            y: 0,
+            width: bandWidth * 0.18,
+            height: bounds.height
+        )
+        NSColor(calibratedWhite: 0.82, alpha: 0.26).setFill()
+        NSBezierPath(rect: coreRect).fill()
+
+        let trailingRect = NSRect(
+            x: bandX + bandWidth,
+            y: 0,
+            width: bandWidth * 0.45,
+            height: bounds.height
+        )
+        NSColor(calibratedWhite: 0.68, alpha: 0.08).setFill()
+        NSBezierPath(rect: trailingRect).fill()
     }
 }
