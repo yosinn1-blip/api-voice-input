@@ -132,9 +132,10 @@ private final class WaveformView: NSView {
         let timer = Timer(timeInterval: 1.0 / 24.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.phase += 0.22
-                let attack: CGFloat = self.targetLevel > self.displayedLevel ? 0.38 : 0.20
-                self.displayedLevel += (self.targetLevel - self.displayedLevel) * attack
+                self.phase += 0.28
+                let reactiveTarget = Self.visualLevel(from: self.targetLevel)
+                let attack: CGFloat = reactiveTarget > self.displayedLevel ? 0.68 : 0.30
+                self.displayedLevel += (reactiveTarget - self.displayedLevel) * attack
                 self.levelHistory.removeFirst()
                 self.levelHistory.append(self.displayedLevel)
                 self.needsDisplay = true
@@ -146,6 +147,11 @@ private final class WaveformView: NSView {
 
     func updateAudioLevel(_ level: Double) {
         targetLevel = min(max(CGFloat(level), 0), 1)
+    }
+
+    private static func visualLevel(from level: CGFloat) -> CGFloat {
+        let lifted = max(0, (level - 0.10) * 1.45)
+        return min(0.86, pow(lifted, 0.76))
     }
 
     func stopAnimating() {
@@ -172,10 +178,13 @@ private final class WaveformView: NSView {
         for index in 0..<barCount {
             let x = CGFloat(index) * (barWidth + gap)
             let sample = min(max(levelHistory[index], 0), 1)
-            let liveRipple = 0.035 * (sin(phase + CGFloat(index) * 0.9) + 1) / 2
-            let level = min(1, sample + liveRipple)
-            let visualLevel = pow(level, 1.10)
-            let height = max(2.0, (0.12 + visualLevel * 0.70) * maxHeight)
+            let center = CGFloat(barCount - 1) / 2
+            let distanceFromCenter = abs(CGFloat(index) - center) / max(center, 1)
+            let centerWeight = 0.62 + (1 - distanceFromCenter) * 0.34
+            let motion = 0.92 + 0.13 * sin(phase + CGFloat(index) * 1.35)
+            let ripple = sample * 0.055 * (sin(phase * 1.7 + CGFloat(index) * 0.85) + 1) / 2
+            let visualLevel = min(0.88, sample * centerWeight * motion + ripple)
+            let height = max(2.0, (0.11 + visualLevel * 0.74) * maxHeight)
             let rect = NSRect(x: x, y: midY - height / 2, width: barWidth, height: height)
             NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         }
