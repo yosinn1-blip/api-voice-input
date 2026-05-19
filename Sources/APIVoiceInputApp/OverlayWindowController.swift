@@ -6,6 +6,7 @@ final class OverlayWindowController {
         case recording = "録音中"
         case transcribing = "文字起こし中"
         case cleaning = "清書中"
+        case pasting = "貼り付け中"
         case pasted = "貼り付けました"
         case failed = "失敗しました"
         case canceled = "音声なし"

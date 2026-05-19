@@ -275,3 +275,10 @@ Everything else should wait until the loop feels good.
 - Fix: the app now analyzes recorded audio before sending it to STT. Very short or silent/low-energy recordings are canceled locally and show `音声なし · 貼り付けなし`.
 - Second guard: if a low-energy recording still returns a known silence hallucination such as `ありがとうございました。`, the transcript is discarded and not pasted.
 - Debug log now records `audioActivity duration/rms/peak` and whether processing was canceled before transcription or after hallucination detection.
+
+## Paste delivery diagnostic update
+
+- Observation: logs showed spoken input was not being filtered as silence; `process transcription ok` was present, so the likely failure point was paste delivery.
+- Fix: before paste, the app now logs `accessibilityTrusted=<true/false>` and shows `貼り付け中 · クリップボードへ保存`.
+- If Accessibility is not trusted, the app does not pretend paste succeeded. It writes the final text to clipboard, shows `アクセシビリティ権限が必要・文字はクリップボード`, and logs that paste was skipped.
+- If Accessibility is trusted, the app sends paste and logs `paste command sent`.

@@ -1,5 +1,6 @@
 import APIVoiceInputCore
 import AppKit
+import ApplicationServices
 import AVFoundation
 import CoreGraphics
 
@@ -124,8 +125,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 overlay.hide()
                 return
             }
+            overlay.show(.pasting, detail: "クリップボードへ保存")
             let paste = PasteController(clipboard: SystemClipboardClient(), keyboard: SystemKeyboardClient())
+            DebugLog.write("paste begin finalChars=\(result.finalText.count) mode=\(profile.pasteMode.rawValue) accessibilityTrusted=\(AXIsProcessTrusted())")
+            if AXIsProcessTrusted() == false {
+                try SystemClipboardClient().writeString(result.finalText)
+                DebugLog.write("paste skipped because Accessibility is not trusted; text kept in clipboard")
+                overlay.show(.failed, detail: "アクセシビリティ権限が必要・文字はクリップボード")
+                return
+            }
             try paste.paste(result.finalText, mode: profile.pasteMode)
+            DebugLog.write("paste command sent")
             overlay.show(.pasted)
             try? FileManager.default.removeItem(at: audioURL)
             try? await Task.sleep(nanoseconds: 900_000_000)
