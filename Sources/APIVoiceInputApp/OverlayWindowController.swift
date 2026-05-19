@@ -190,26 +190,19 @@ private final class WaveformView: NSView {
         let step = usableWidth / CGFloat(max(waveformHistory.count - 1, 1))
         let amplitude = bounds.height * 0.36
 
-        let baseline = NSBezierPath()
-        baseline.move(to: NSPoint(x: horizontalInset, y: midY))
-        baseline.line(to: NSPoint(x: bounds.width - horizontalInset, y: midY))
-        baseline.lineWidth = 1
-        NSColor.white.withAlphaComponent(0.14).setStroke()
-        baseline.stroke()
-
         for (index, sample) in waveformHistory.enumerated() {
             let x = horizontalInset + CGFloat(index) * step
             let y = midY - sample * amplitude
             let recency = CGFloat(index) / CGFloat(max(waveformHistory.count - 1, 1))
-            let activity = min(1, abs(sample) * 1.35 + displayedLevel * 0.45)
+            let activity = min(1, abs(sample) * 1.15 + displayedLevel * 0.25)
             let radius = index == waveformHistory.count - 1
-                ? CGFloat(2.15)
-                : CGFloat(1.15 + recency * 0.22 + activity * 0.26)
+                ? CGFloat(1.45)
+                : CGFloat(1.05 + activity * 0.14)
             let alpha = index == waveformHistory.count - 1
-                ? CGFloat(0.96)
-                : CGFloat(0.30 + recency * 0.42 + activity * 0.18)
+                ? CGFloat(0.92)
+                : CGFloat(0.34 + recency * 0.36 + activity * 0.12)
 
-            NSColor.white.withAlphaComponent(min(alpha, 0.88)).setFill()
+            NSColor.white.withAlphaComponent(min(alpha, 0.78)).setFill()
             let dotRect = NSRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
             NSBezierPath(ovalIn: dotRect).fill()
         }
