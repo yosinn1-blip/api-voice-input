@@ -22,12 +22,13 @@ final class OverlayWindowController {
         label.alignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
 
-        let contentView = NSVisualEffectView()
-        contentView.material = .hudWindow
-        contentView.blendingMode = .behindWindow
-        contentView.state = .active
+        let contentView = NSView()
+        contentView.translatesAutoresizingMaskIntoConstraints = false
         contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.82).cgColor
         contentView.layer?.cornerRadius = 18
+        contentView.layer?.borderWidth = 1
+        contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.35).cgColor
         contentView.addSubview(label)
 
         NSLayoutConstraint.activate([
