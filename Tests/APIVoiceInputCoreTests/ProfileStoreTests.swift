@@ -9,4 +9,42 @@ final class ProfileStoreTests: XCTestCase {
         XCTAssertEqual(profile.cleanupProviderID, "none")
         XCTAssertEqual(profile.pasteMode, .pasteOnly)
     }
+
+    func testLoadCreatesDefaultProfileWhenFileDoesNotExist() throws {
+        let directory = try temporaryDirectory()
+        let store = ProfileStore(directoryURL: directory)
+
+        let profiles = try store.loadProfiles()
+
+        XCTAssertEqual(profiles.count, 1)
+        XCTAssertEqual(profiles[0].displayName, "日本語 default")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("profiles.json").path))
+    }
+
+    func testSaveAndLoadMultipleProfiles() throws {
+        let directory = try temporaryDirectory()
+        let store = ProfileStore(directoryURL: directory)
+        let english = VoiceProfile(
+            displayName: "English email",
+            sttLanguageHint: "en",
+            transcriptionProviderID: "groq-whisper-large-v3-turbo",
+            cleanupProviderID: "gemini-free",
+            cleanupPrompt: "Rewrite as a concise, polite English email without changing the meaning.",
+            pasteMode: .pasteThenEnter
+        )
+
+        try store.saveProfiles([.defaultJapanese, english])
+        let loaded = try store.loadProfiles()
+
+        XCTAssertEqual(loaded.map(\.displayName), ["日本語 default", "English email"])
+        XCTAssertEqual(loaded[1].pasteMode, .pasteThenEnter)
+    }
+
+    private func temporaryDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("APIVoiceInputTests")
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
 }
