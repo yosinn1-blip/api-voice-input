@@ -23,11 +23,11 @@ final class OverlayWindowController {
         let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         contentView.wantsLayer = true
-        contentView.layer?.backgroundColor = NSColor(calibratedWhite: 0.10, alpha: 0.74).cgColor
+        contentView.layer?.backgroundColor = NSColor(calibratedRed: 0.16, green: 0.17, blue: 0.18, alpha: 0.76).cgColor
         contentView.layer?.cornerRadius = 14
         contentView.layer?.masksToBounds = true
         contentView.layer?.borderWidth = 1
-        contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
+        contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.26).cgColor
         contentView.addSubview(progressView)
         contentView.addSubview(waveformView)
 
@@ -225,17 +225,17 @@ private final class ProcessingGaugeView: NSView {
 
         let fillWidth = bounds.width * min(max(phase, 0), 1)
         let fillRect = NSRect(x: bounds.minX, y: bounds.minY, width: fillWidth, height: bounds.height)
-        NSColor(calibratedWhite: 0.015, alpha: 0.48).setFill()
+        NSColor(calibratedRed: 0.74, green: 0.82, blue: 0.90, alpha: 0.58).setFill()
         NSBezierPath(rect: fillRect).fill()
 
-        let edgeAlpha = 0.16 + 0.06 * (sin(pulse) + 1) / 2
+        let edgeAlpha = 0.34 + 0.10 * (sin(pulse) + 1) / 2
         let edgeRect = NSRect(
             x: max(bounds.minX, fillRect.maxX - 14),
             y: bounds.minY,
             width: min(18, fillWidth),
             height: bounds.height
         )
-        NSColor(calibratedWhite: 0.36, alpha: edgeAlpha).setFill()
+        NSColor(calibratedRed: 0.94, green: 0.97, blue: 1.0, alpha: edgeAlpha).setFill()
         NSBezierPath(rect: edgeRect).fill()
     }
 }
