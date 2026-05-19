@@ -147,11 +147,18 @@ struct YouTubePauseController {
         DebugLog.write("youtube pause media-remote reason=\(reason) snapshot displayID=\(snapshot.displayID ?? "nil") isPlaying=\(snapshot.isPlaying.map(String.init) ?? "nil") target=\(target.bundleIdentifier)")
         let shouldSendPause = snapshot.displayID == target.bundleIdentifier || snapshot.displayID == nil
         guard shouldSendPause else {
+            DebugLog.write("youtube pause media-remote-pause skipped reason=\(reason) browser=\(target.name) guardedDisplayID=\(snapshot.displayID ?? "nil")")
             return false
         }
         let sent = controller.sendPause()
-        DebugLog.write("youtube pause media-remote-pause reason=\(reason) browser=\(target.name) sent=\(sent) guardedDisplayID=\(snapshot.displayID ?? "nil")")
-        return sent
+        let confirmed = MediaRemotePauseSuccessDecision.isConfirmedPause(
+            sent: sent,
+            snapshotDisplayID: snapshot.displayID,
+            snapshotIsPlaying: snapshot.isPlaying,
+            targetDisplayID: target.bundleIdentifier
+        )
+        DebugLog.write("youtube pause media-remote-pause reason=\(reason) browser=\(target.name) sent=\(sent) confirmed=\(confirmed) guardedDisplayID=\(snapshot.displayID ?? "nil")")
+        return confirmed
     }
 
     private static func muteSystemOutput() -> SystemAudioSnapshot? {

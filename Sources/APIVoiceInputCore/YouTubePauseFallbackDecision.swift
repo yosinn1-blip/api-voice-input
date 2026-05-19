@@ -28,3 +28,15 @@ public enum YouTubePauseFallbackDecision {
         return counters
     }
 }
+
+
+public enum MediaRemotePauseSuccessDecision {
+    public static func isConfirmedPause(
+        sent: Bool,
+        snapshotDisplayID: String?,
+        snapshotIsPlaying: Bool?,
+        targetDisplayID: String
+    ) -> Bool {
+        sent && snapshotDisplayID == targetDisplayID && snapshotIsPlaying == true
+    }
+}

@@ -14,3 +14,33 @@ final class YouTubePauseFallbackDecisionTests: XCTestCase {
         XCTAssertEqual(YouTubePauseFallbackDecision.fallbackAction(scriptOutput: "tabs=2 pausedVideos=1 errors=1"), .none)
     }
 }
+
+
+final class MediaRemotePauseSuccessDecisionTests: XCTestCase {
+    func testDoesNotTreatNilMediaRemoteSnapshotAsConfirmedPause() {
+        XCTAssertFalse(MediaRemotePauseSuccessDecision.isConfirmedPause(
+            sent: true,
+            snapshotDisplayID: nil,
+            snapshotIsPlaying: false,
+            targetDisplayID: "com.google.Chrome"
+        ))
+    }
+
+    func testTreatsTargetPlayingSnapshotAndSentCommandAsConfirmedPause() {
+        XCTAssertTrue(MediaRemotePauseSuccessDecision.isConfirmedPause(
+            sent: true,
+            snapshotDisplayID: "com.google.Chrome",
+            snapshotIsPlaying: true,
+            targetDisplayID: "com.google.Chrome"
+        ))
+    }
+
+    func testDoesNotTreatDifferentAppSnapshotAsConfirmedPause() {
+        XCTAssertFalse(MediaRemotePauseSuccessDecision.isConfirmedPause(
+            sent: true,
+            snapshotDisplayID: "com.apple.Music",
+            snapshotIsPlaying: true,
+            targetDisplayID: "com.google.Chrome"
+        ))
+    }
+}

@@ -71,7 +71,7 @@
       <h1>AIに話しかけるための<br>小さな音声入力アプリ</h1>
       <p class="lead">API音声ソフトは、<code>Fn</code>で録音して、ChatGPT / Claude / Codex などの入力欄へ素早く貼り付けるMac向けメニューバーアプリです。</p>
       <div class="actions">
-        <a class="button primary" href="https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.1/api-voice-input-0.1.1-2.zip">最新版をダウンロード</a>
+        <a class="button primary" href="https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.2/api-voice-input-0.1.2-3.zip">最新版をダウンロード</a>
         <a class="button" href="https://github.com/yosinn1-blip/api-voice-input">GitHubを見る</a>
       </div>
       <div class="pill-demo" aria-label="録音中の小さな波形インジケーター">
@@ -109,11 +109,12 @@
     <section class="card">
       <h2>注意</h2>
       <p>現時点のMVPはnotarize済みではありません。初回起動時にmacOSのGatekeeper警告が出る場合は、Finderで右クリックして「開く」を選んでください。</p>
+      <p>YouTube一時停止オプションでChromeの動画を確実に止めたい場合は、Chromeの <code>表示</code> → <code>デベロッパー</code> → <code>Apple Events からの JavaScript を許可</code> をオンにしてください。オフの場合は、一時的なシステム音声ミュートへフォールバックすることがあります。</p>
       <p>録音音声は文字起こしのためGroq APIへ送信されます。詳しくはGitHub上の <a href="https://github.com/yosinn1-blip/api-voice-input/blob/main/PRIVACY.md">PRIVACY.md</a> を確認してください。</p>
     </section>
 
     <footer>
-      <p>© Yoshiki. API音声ソフト v0.1.1</p>
+      <p>© Yoshiki. API音声ソフト v0.1.2</p>
     </footer>
   </main>
 </body>
