@@ -113,7 +113,8 @@ private final class WaveformView: NSView {
     private var phase: CGFloat = 0
     private var targetLevel: CGFloat = 0
     private var displayedLevel: CGFloat = 0
-    private let dotCount = 17
+    private let barCount = 15
+    private var levelHistory = Array(repeating: CGFloat(0), count: 15)
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -128,13 +129,15 @@ private final class WaveformView: NSView {
 
     func startAnimating() {
         guard timer == nil else { return }
-        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.0 / 24.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.phase += 0.26
+                self.phase += 0.28
                 let reactiveTarget = Self.visualLevel(from: self.targetLevel)
-                let attack: CGFloat = reactiveTarget > self.displayedLevel ? 0.72 : 0.34
+                let attack: CGFloat = reactiveTarget > self.displayedLevel ? 0.68 : 0.30
                 self.displayedLevel += (reactiveTarget - self.displayedLevel) * attack
+                self.levelHistory.removeFirst()
+                self.levelHistory.append(self.displayedLevel)
                 self.needsDisplay = true
             }
         }
@@ -151,13 +154,13 @@ private final class WaveformView: NSView {
         return min(0.86, pow(lifted, 0.76))
     }
 
-
     func stopAnimating() {
         timer?.invalidate()
         timer = nil
         phase = 0
         targetLevel = 0
         displayedLevel = 0
+        levelHistory = Array(repeating: CGFloat(0), count: barCount)
         needsDisplay = true
     }
 
@@ -165,29 +168,25 @@ private final class WaveformView: NSView {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
+        let barWidth: CGFloat = 2.8
+        let gap = (bounds.width - CGFloat(barCount) * barWidth) / CGFloat(max(barCount - 1, 1))
         let midY = bounds.midY
-        let horizontalInset: CGFloat = 12
-        let usableWidth = max(1, bounds.width - horizontalInset * 2)
-        let step = usableWidth / CGFloat(max(dotCount - 1, 1))
-        let amplitude = bounds.height * 0.28
-        let center = CGFloat(dotCount - 1) / 2
-        let level = max(displayedLevel, targetLevel * 0.25)
+        let maxHeight = bounds.height - 2
+        let color = NSColor.white.withAlphaComponent(0.92)
+        color.setFill()
 
-        for index in 0..<dotCount {
-            let x = horizontalInset + CGFloat(index) * step
+        for index in 0..<barCount {
+            let x = CGFloat(index) * (barWidth + gap)
+            let sample = min(max(levelHistory[index], 0), 1)
+            let center = CGFloat(barCount - 1) / 2
             let distanceFromCenter = abs(CGFloat(index) - center) / max(center, 1)
-            let centerWeight = 0.28 + (1 - distanceFromCenter) * 0.72
-            let wave = sin(phase + CGFloat(index) * 0.72)
-            let secondary = 0.22 * sin(phase * 1.65 + CGFloat(index) * 1.18)
-            let sample = (wave + secondary) * level * centerWeight
-            let y = midY - sample * amplitude
-            let activity = min(1, level * centerWeight)
-            let radius = CGFloat(1.46 + activity * 0.22)
-            let alpha = CGFloat(0.46 + activity * 0.32)
-
-            NSColor.white.withAlphaComponent(min(alpha, 0.84)).setFill()
-            let dotRect = NSRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
-            NSBezierPath(ovalIn: dotRect).fill()
+            let centerWeight = 0.62 + (1 - distanceFromCenter) * 0.34
+            let motion = 0.92 + 0.13 * sin(phase + CGFloat(index) * 1.35)
+            let ripple = sample * 0.055 * (sin(phase * 1.7 + CGFloat(index) * 0.85) + 1) / 2
+            let visualLevel = min(0.88, sample * centerWeight * motion + ripple)
+            let height = max(2.0, (0.11 + visualLevel * 0.74) * maxHeight)
+            let rect = NSRect(x: x, y: midY - height / 2, width: barWidth, height: height)
+            NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         }
     }
 }
