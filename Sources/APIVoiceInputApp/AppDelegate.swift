@@ -69,11 +69,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             _ = try recorder.startRecording()
             isRecording = true
+            hotkeyController?.setRecordingActive(true)
             maxRecordingLevel = 0
             DebugLog.write("startRecording ok url=\(recorder.currentURL?.path ?? "nil")")
-            overlay.show(.recording, detail: "Fn / F19 / ⌘⇧Spaceで停止")
+            overlay.show(.recording, detail: "Enterで停止して送信")
             startAudioLevelUpdates()
         } catch {
+            hotkeyController?.setRecordingActive(false)
             DebugLog.write("startRecording failed error=\(error.localizedDescription)")
             overlay.show(.failed, detail: "録音開始失敗: \(error.localizedDescription)")
         }
@@ -85,11 +87,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DebugLog.write(String(format: "recordingLevel max=%.3f", maxRecordingLevel))
         guard let audioURL = recorder.stopRecording() else {
             isRecording = false
+            hotkeyController?.setRecordingActive(false)
             DebugLog.write("finishRecording failed no audioURL")
             overlay.show(.failed, detail: "録音ファイルなし")
             return
         }
         isRecording = false
+        hotkeyController?.setRecordingActive(false)
         DebugLog.write("finishRecording ok url=\(audioURL.path)")
         overlay.show(.transcribing)
         Task {
