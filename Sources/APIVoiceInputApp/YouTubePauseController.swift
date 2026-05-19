@@ -3,6 +3,10 @@ import AppKit
 import Foundation
 
 struct YouTubePauseController {
+    struct SystemAudioSnapshot {
+        let wasMuted: Bool
+    }
+
     private struct BrowserTarget {
         let name: String
         let bundleIdentifier: String
@@ -14,31 +18,33 @@ struct YouTubePauseController {
         case safari
     }
 
-    private let queue = DispatchQueue(label: "com.yoshiki.APIVoiceInput.youtubePause", qos: .utility)
+    func prepareYouTubeBeforeRecording() -> SystemAudioSnapshot? {
+        let targets = Self.supportedBrowsers.filter { target in
+            NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleIdentifier).isEmpty == false
+        }
 
-    func pauseYouTubeOnRecordingStart() {
-        queue.async {
-            let targets = Self.supportedBrowsers.filter { target in
-                NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleIdentifier).isEmpty == false
-            }
+        guard targets.isEmpty == false else {
+            DebugLog.write("youtube pause skipped no supported browser running")
+            return nil
+        }
 
-            guard targets.isEmpty == false else {
-                DebugLog.write("youtube pause skipped no supported browser running")
-                return
-            }
-
-            var didUseFallback = false
-            for target in targets {
-                let script = Self.pauseScript(for: target)
-                let result = Self.runAppleScript(script)
-                DebugLog.write("youtube pause browser=\(target.name) status=\(result.status) output=\(result.output)")
-                if didUseFallback == false && YouTubePauseFallbackDecision.shouldUseMediaKeyFallback(scriptOutput: result.output) {
-                    Self.sendPlayPauseMediaKey()
-                    didUseFallback = true
-                    DebugLog.write("youtube pause fallback=media-key browser=\(target.name) reason=javascript-pause-failed")
-                }
+        var audioSnapshot: SystemAudioSnapshot?
+        for target in targets {
+            let script = Self.pauseScript(for: target)
+            let result = Self.runAppleScript(script)
+            DebugLog.write("youtube pause browser=\(target.name) status=\(result.status) output=\(result.output)")
+            if audioSnapshot == nil && YouTubePauseFallbackDecision.fallbackAction(scriptOutput: result.output) == .muteSystemOutput {
+                audioSnapshot = Self.muteSystemOutput()
+                DebugLog.write("youtube pause fallback=system-output-muted browser=\(target.name) reason=javascript-pause-failed")
             }
         }
+        return audioSnapshot
+    }
+
+    func restoreSystemAudioIfNeeded(_ snapshot: SystemAudioSnapshot?) {
+        guard let snapshot, snapshot.wasMuted == false else { return }
+        let result = Self.runAppleScript("set volume without output muted")
+        DebugLog.write("youtube pause restore system-output-muted=false status=\(result.status) output=\(result.output)")
     }
 
     private static let supportedBrowsers: [BrowserTarget] = [
@@ -126,27 +132,12 @@ struct YouTubePauseController {
         """
     }
 
-    private static func sendPlayPauseMediaKey() {
-        let keyTypePlay: UInt32 = 16
-        postMediaKey(keyType: keyTypePlay, isKeyDown: true)
-        postMediaKey(keyType: keyTypePlay, isKeyDown: false)
-    }
-
-    private static func postMediaKey(keyType: UInt32, isKeyDown: Bool) {
-        let keyState: UInt32 = isKeyDown ? 0xA : 0xB
-        let data1 = Int((keyType << 16) | (keyState << 8))
-        let event = NSEvent.otherEvent(
-            with: .systemDefined,
-            location: .zero,
-            modifierFlags: NSEvent.ModifierFlags(rawValue: 0xA00),
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            subtype: 8,
-            data1: data1,
-            data2: -1
-        )
-        event?.cgEvent?.post(tap: .cghidEventTap)
+    private static func muteSystemOutput() -> SystemAudioSnapshot? {
+        let snapshotResult = runAppleScript("return output muted of (get volume settings)")
+        let wasMuted = snapshotResult.output.lowercased().contains("true")
+        let muteResult = runAppleScript("set volume with output muted")
+        DebugLog.write("youtube pause system-output-muted=true previousMuted=\(wasMuted) status=\(muteResult.status) output=\(muteResult.output)")
+        return SystemAudioSnapshot(wasMuted: wasMuted)
     }
 
     private static func runAppleScript(_ script: String) -> (status: Int32, output: String) {

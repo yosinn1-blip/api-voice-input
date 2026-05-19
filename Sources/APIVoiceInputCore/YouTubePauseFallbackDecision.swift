@@ -1,13 +1,21 @@
 import Foundation
 
+public enum YouTubePauseFallbackAction: Equatable {
+    case none
+    case muteSystemOutput
+}
+
 public enum YouTubePauseFallbackDecision {
-    public static func shouldUseMediaKeyFallback(scriptOutput: String) -> Bool {
+    public static func fallbackAction(scriptOutput: String) -> YouTubePauseFallbackAction {
         let values = parseCounters(from: scriptOutput)
         let tabs = values["tabs", default: 0]
         let pausedVideos = values["pausedVideos", default: 0]
         let errors = values["errors", default: 0]
 
-        return tabs > 0 && pausedVideos == 0 && errors > 0
+        if tabs > 0 && pausedVideos == 0 && errors > 0 {
+            return .muteSystemOutput
+        }
+        return .none
     }
 
     private static func parseCounters(from output: String) -> [String: Int] {
