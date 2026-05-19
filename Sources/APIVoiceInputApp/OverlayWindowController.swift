@@ -24,7 +24,7 @@ final class OverlayWindowController {
         contentView.translatesAutoresizingMaskIntoConstraints = false
         contentView.wantsLayer = true
         contentView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.82).cgColor
-        contentView.layer?.cornerRadius = 18
+        contentView.layer?.cornerRadius = 14
         contentView.layer?.borderWidth = 1
         contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.35).cgColor
         contentView.addSubview(waveformView)
@@ -34,12 +34,12 @@ final class OverlayWindowController {
             waveformView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             waveformView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
             waveformView.widthAnchor.constraint(equalToConstant: 118),
-            waveformView.heightAnchor.constraint(equalToConstant: 24),
+            waveformView.heightAnchor.constraint(equalToConstant: 18),
 
             progressView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             progressView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
             progressView.widthAnchor.constraint(equalToConstant: 122),
-            progressView.heightAnchor.constraint(equalToConstant: 8)
+            progressView.heightAnchor.constraint(equalToConstant: 6)
         ])
 
         window = NSWindow(
@@ -91,7 +91,7 @@ final class OverlayWindowController {
     private func positionWindow() {
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let width: CGFloat = 168
-        let height: CGFloat = 42
+        let height: CGFloat = 32
         let x = screen.midX - width / 2
         let y = screen.minY + 36
         window.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
@@ -138,10 +138,10 @@ private final class WaveformView: NSView {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let barWidth: CGFloat = 3.2
+        let barWidth: CGFloat = 2.8
         let gap = (bounds.width - CGFloat(barCount) * barWidth) / CGFloat(max(barCount - 1, 1))
         let midY = bounds.midY
-        let maxHeight = bounds.height - 3
+        let maxHeight = bounds.height - 2
         let color = NSColor.white.withAlphaComponent(0.92)
         color.setFill()
 
@@ -150,7 +150,7 @@ private final class WaveformView: NSView {
             let wave = sin(phase + CGFloat(index) * 0.72)
             let secondary = sin(phase * 0.58 + CGFloat(index) * 1.31)
             let normalized = (wave * 0.62 + secondary * 0.38 + 1) / 2
-            let height = max(5, normalized * maxHeight)
+            let height = max(4, normalized * maxHeight)
             let rect = NSRect(x: x, y: midY - height / 2, width: barWidth, height: height)
             NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         }
@@ -200,7 +200,7 @@ private final class ProcessingGaugeView: NSView {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let trackRect = bounds.insetBy(dx: 0, dy: max(0, (bounds.height - 5) / 2))
+        let trackRect = bounds.insetBy(dx: 0, dy: max(0, (bounds.height - 4) / 2))
         NSColor.white.withAlphaComponent(0.20).setFill()
         NSBezierPath(roundedRect: trackRect, xRadius: trackRect.height / 2, yRadius: trackRect.height / 2).fill()
 
