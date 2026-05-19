@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overlay = OverlayWindowController()
     private let recorder = RecorderController()
     private var isRecording = false
+    private var audioLevelTimer: Timer?
+    private var maxRecordingLevel: Double = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         DebugLog.write("app launched")
@@ -67,8 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             _ = try recorder.startRecording()
             isRecording = true
+            maxRecordingLevel = 0
             DebugLog.write("startRecording ok url=\(recorder.currentURL?.path ?? "nil")")
             overlay.show(.recording, detail: "Fn / F19 / ⌘⇧Spaceで停止")
+            startAudioLevelUpdates()
         } catch {
             DebugLog.write("startRecording failed error=\(error.localizedDescription)")
             overlay.show(.failed, detail: "録音開始失敗: \(error.localizedDescription)")
@@ -77,6 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func finishRecording(source: String) {
         DebugLog.write("finishRecording requested source=\(source)")
+        stopAudioLevelUpdates()
+        DebugLog.write(String(format: "recordingLevel max=%.3f", maxRecordingLevel))
         guard let audioURL = recorder.stopRecording() else {
             isRecording = false
             DebugLog.write("finishRecording failed no audioURL")
@@ -150,6 +156,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DebugLog.write("process failed error=\(error.localizedDescription)")
             overlay.show(.failed, detail: error.localizedDescription)
         }
+    }
+
+    private func startAudioLevelUpdates() {
+        stopAudioLevelUpdates()
+        overlay.updateRecordingLevel(0)
+        let timer = Timer(timeInterval: 1.0 / 24.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isRecording else { return }
+                let level = self.recorder.normalizedAudioLevel()
+                self.maxRecordingLevel = max(self.maxRecordingLevel, level)
+                self.overlay.updateRecordingLevel(level)
+            }
+        }
+        audioLevelTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func stopAudioLevelUpdates() {
+        audioLevelTimer?.invalidate()
+        audioLevelTimer = nil
+        overlay.updateRecordingLevel(0)
     }
 
 }

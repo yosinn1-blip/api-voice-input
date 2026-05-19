@@ -69,6 +69,10 @@ final class OverlayWindowController {
         window.orderOut(nil)
     }
 
+    func updateRecordingLevel(_ level: Double) {
+        waveformView.updateAudioLevel(level)
+    }
+
     private func updateVisual(for state: State) {
         switch state {
         case .recording:
@@ -107,6 +111,8 @@ final class OverlayWindowController {
 private final class WaveformView: NSView {
     private var timer: Timer?
     private var phase: CGFloat = 0
+    private var targetLevel: CGFloat = 0
+    private var displayedLevel: CGFloat = 0
     private let barCount = 15
 
     override init(frame frameRect: NSRect) {
@@ -126,6 +132,7 @@ private final class WaveformView: NSView {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.phase += 0.22
+                self.displayedLevel += (self.targetLevel - self.displayedLevel) * 0.34
                 self.needsDisplay = true
             }
         }
@@ -133,10 +140,16 @@ private final class WaveformView: NSView {
         RunLoop.main.add(timer, forMode: .common)
     }
 
+    func updateAudioLevel(_ level: Double) {
+        targetLevel = min(max(CGFloat(level), 0), 1)
+    }
+
     func stopAnimating() {
         timer?.invalidate()
         timer = nil
         phase = 0
+        targetLevel = 0
+        displayedLevel = 0
         needsDisplay = true
     }
 
@@ -148,6 +161,7 @@ private final class WaveformView: NSView {
         let gap = (bounds.width - CGFloat(barCount) * barWidth) / CGFloat(max(barCount - 1, 1))
         let midY = bounds.midY
         let maxHeight = bounds.height - 2
+        let levelScale = 0.18 + min(max(displayedLevel, 0), 1) * 0.82
         let color = NSColor.white.withAlphaComponent(0.92)
         color.setFill()
 
@@ -156,7 +170,8 @@ private final class WaveformView: NSView {
             let wave = sin(phase + CGFloat(index) * 0.72)
             let secondary = sin(phase * 0.58 + CGFloat(index) * 1.31)
             let normalized = (wave * 0.62 + secondary * 0.38 + 1) / 2
-            let height = max(4, normalized * maxHeight)
+            let barShape = 0.25 + normalized * 0.75
+            let height = max(2.5, barShape * maxHeight * levelScale)
             let rect = NSRect(x: x, y: midY - height / 2, width: barWidth, height: height)
             NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         }
