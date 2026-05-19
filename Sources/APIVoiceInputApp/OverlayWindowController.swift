@@ -81,7 +81,12 @@ final class OverlayWindowController {
             progressView.isHidden = false
             waveformView.stopAnimating()
             progressView.startAnimating()
-        case .pasted, .failed, .canceled:
+        case .pasted:
+            waveformView.isHidden = true
+            progressView.isHidden = false
+            waveformView.stopAnimating()
+            progressView.showComplete()
+        case .failed, .canceled:
             waveformView.isHidden = true
             progressView.isHidden = false
             waveformView.stopAnimating()
@@ -161,6 +166,7 @@ private final class WaveformView: NSView {
 private final class ProcessingGaugeView: NSView {
     private var timer: Timer?
     private var phase: CGFloat = 0
+    private var pulse: CGFloat = 0
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -174,10 +180,16 @@ private final class ProcessingGaugeView: NSView {
 
     func startAnimating() {
         guard timer == nil else { return }
+        phase = 0
+        pulse = 0
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.phase = (self.phase + 0.026).truncatingRemainder(dividingBy: 1)
+                if self.phase < 0.94 {
+                    self.phase = min(0.94, self.phase + 0.018)
+                } else {
+                    self.pulse += 0.12
+                }
                 self.needsDisplay = true
             }
         }
@@ -190,10 +202,18 @@ private final class ProcessingGaugeView: NSView {
         isHidden = false
     }
 
+    func showComplete() {
+        stopAnimating()
+        phase = 1
+        isHidden = false
+        needsDisplay = true
+    }
+
     func stopAnimating() {
         timer?.invalidate()
         timer = nil
         phase = 0
+        pulse = 0
         needsDisplay = true
     }
 
@@ -201,46 +221,21 @@ private final class ProcessingGaugeView: NSView {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        guard timer != nil else { return }
+        guard phase > 0 else { return }
 
-        let bandWidth = bounds.width * 0.52
-        let travel = bounds.width + bandWidth
-        let bandX = phase * travel - bandWidth
+        let fillWidth = bounds.width * min(max(phase, 0), 1)
+        let fillRect = NSRect(x: bounds.minX, y: bounds.minY, width: fillWidth, height: bounds.height)
+        NSColor(calibratedWhite: 0.015, alpha: 0.48).setFill()
+        NSBezierPath(rect: fillRect).fill()
 
-        let leadingRect = NSRect(
-            x: bandX - bandWidth * 0.45,
-            y: 0,
-            width: bandWidth * 0.45,
+        let edgeAlpha = 0.16 + 0.06 * (sin(pulse) + 1) / 2
+        let edgeRect = NSRect(
+            x: max(bounds.minX, fillRect.maxX - 14),
+            y: bounds.minY,
+            width: min(18, fillWidth),
             height: bounds.height
         )
-        NSColor(calibratedWhite: 0.68, alpha: 0.08).setFill()
-        NSBezierPath(rect: leadingRect).fill()
-
-        let bandRect = NSRect(
-            x: bandX,
-            y: 0,
-            width: bandWidth,
-            height: bounds.height
-        )
-        NSColor(calibratedWhite: 0.72, alpha: 0.23).setFill()
-        NSBezierPath(rect: bandRect).fill()
-
-        let coreRect = NSRect(
-            x: bandX + bandWidth * 0.42,
-            y: 0,
-            width: bandWidth * 0.18,
-            height: bounds.height
-        )
-        NSColor(calibratedWhite: 0.82, alpha: 0.26).setFill()
-        NSBezierPath(rect: coreRect).fill()
-
-        let trailingRect = NSRect(
-            x: bandX + bandWidth,
-            y: 0,
-            width: bandWidth * 0.45,
-            height: bounds.height
-        )
-        NSColor(calibratedWhite: 0.68, alpha: 0.08).setFill()
-        NSBezierPath(rect: trailingRect).fill()
+        NSColor(calibratedWhite: 0.36, alpha: edgeAlpha).setFill()
+        NSBezierPath(rect: edgeRect).fill()
     }
 }
