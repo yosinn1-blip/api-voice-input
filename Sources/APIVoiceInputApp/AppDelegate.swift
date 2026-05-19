@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyController: HotkeyController?
     private let overlay = OverlayWindowController()
     private let recorder = RecorderController()
+    private let youTubePauseController = YouTubePauseController()
     private var isRecording = false
     private var audioLevelTimer: Timer?
     private var maxRecordingLevel: Double = 0
@@ -73,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             maxRecordingLevel = 0
             DebugLog.write("startRecording ok url=\(recorder.currentURL?.path ?? "nil")")
             overlay.show(.recording, detail: "Enterで停止して送信")
+            youTubePauseController.pauseYouTubeOnRecordingStart()
             startAudioLevelUpdates()
         } catch {
             hotkeyController?.setRecordingActive(false)

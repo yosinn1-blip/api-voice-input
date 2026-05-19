@@ -20,5 +20,7 @@
   <true/>
   <key>NSMicrophoneUsageDescription</key>
   <string>音声入力のためにマイクを使用します。</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>録音開始時にバックグラウンドのYouTube動画を一時停止するため、ブラウザのYouTubeタブを操作します。</string>
 </dict>
 </plist>
