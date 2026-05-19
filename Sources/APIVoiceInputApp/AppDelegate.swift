@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         statusMenu = StatusMenuController { [weak self] in
             self?.toggleRecording(source: "menu")
+        } openAccessibilitySettings: {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
         }
         hotkeyController = HotkeyController { [weak self] source in
             Task { @MainActor in self?.toggleRecording(source: source) }

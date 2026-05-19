@@ -14,5 +14,17 @@ mkdir -p "$MACOS"
 cp "$BIN_DIR/APIVoiceInputApp" "$MACOS/APIVoiceInputApp"
 cp "$ROOT/Info.plist" "$CONTENTS/Info.plist"
 chmod +x "$MACOS/APIVoiceInputApp"
-/usr/bin/codesign --force --sign - "$APP_DIR"
+
+DEFAULT_IDENTITY="Whispur Compact Local Code Signing"
+SIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
+if [[ -z "$SIGN_IDENTITY" ]]; then
+  if /usr/bin/security find-identity -v -p codesigning | /usr/bin/grep -Fq "\"$DEFAULT_IDENTITY\""; then
+    SIGN_IDENTITY="$DEFAULT_IDENTITY"
+  else
+    SIGN_IDENTITY="-"
+  fi
+fi
+
+/usr/bin/codesign --force --timestamp=none --sign "$SIGN_IDENTITY" "$APP_DIR"
+echo "codesigned with: $SIGN_IDENTITY" >&2
 echo "$APP_DIR"
