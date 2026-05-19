@@ -1,15 +1,41 @@
+import APIVoiceInputCore
 import Foundation
 
 struct APIKeyStore {
     static let secretsFileURL = AppSettings.applicationSupportDirectory.appendingPathComponent("secrets.env")
+    private static let keychain = KeychainStore(service: AppSettings.bundleIdentifier)
 
     static func loadGroqAPIKey() -> String? {
-        if let fileKey = loadKeyFromSecretsFile(name: "GROQ_API_KEY"), fileKey.isEmpty == false {
+        let fileKey = loadKeyFromSecretsFile(name: "GROQ_API_KEY")
+        if let normalizedFileKey = GroqAPIKeySetup.normalizedAPIKey(fileKey ?? "") {
             DebugLog.write("loaded Groq API key from secrets file")
-            return fileKey
+            return normalizedFileKey
         }
-        DebugLog.write("Groq API key not found in secrets file")
+        if GroqAPIKeySetup.shouldReadKeychainSecret(secretsFileKey: fileKey) {
+            if let keychainKey = try? keychain.loadAPIKey(account: AppSettings.groqKeyAccount),
+               let normalizedKey = GroqAPIKeySetup.normalizedAPIKey(keychainKey) {
+                DebugLog.write("loaded Groq API key from Keychain")
+                return normalizedKey
+            }
+        }
+        DebugLog.write("Groq API key not found")
         return nil
+    }
+
+    static func hasGroqAPIKey() -> Bool {
+        if let fileKey = loadKeyFromSecretsFile(name: "GROQ_API_KEY"),
+           GroqAPIKeySetup.normalizedAPIKey(fileKey) != nil {
+            return true
+        }
+        return (try? keychain.containsAPIKey(account: AppSettings.groqKeyAccount)) ?? false
+    }
+
+    static func saveGroqAPIKey(_ rawValue: String) throws {
+        guard let normalizedKey = GroqAPIKeySetup.normalizedAPIKey(rawValue) else {
+            throw APIKeyStoreError.emptyKey
+        }
+        try keychain.saveAPIKey(normalizedKey, account: AppSettings.groqKeyAccount)
+        DebugLog.write("saved Groq API key to Keychain")
     }
 
     private static func loadKeyFromSecretsFile(name: String) -> String? {
@@ -27,5 +53,16 @@ struct APIKeyStore {
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
         }
         return nil
+    }
+}
+
+enum APIKeyStoreError: LocalizedError {
+    case emptyKey
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyKey:
+            "APIキーが空です"
+        }
     }
 }

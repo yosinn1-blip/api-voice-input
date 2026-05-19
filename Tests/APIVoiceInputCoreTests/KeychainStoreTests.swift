@@ -8,8 +8,10 @@ final class KeychainStoreTests: XCTestCase {
         try store.saveAPIKey("secret-value", account: account)
 
         XCTAssertEqual(try store.loadAPIKey(account: account), "secret-value")
+        XCTAssertTrue(try store.containsAPIKey(account: account))
 
         try store.deleteAPIKey(account: account)
         XCTAssertNil(try store.loadAPIKey(account: account))
+        XCTAssertFalse(try store.containsAPIKey(account: account))
     }
 }

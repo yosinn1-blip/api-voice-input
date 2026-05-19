@@ -29,6 +29,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.toggleRecording(source: "menu")
         } openAccessibilitySettings: {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        } openGroqAPIKeyPage: {
+            NSWorkspace.shared.open(GroqAPIKeySetup.apiKeyURL)
+        } setGroqAPIKey: { [weak self] in
+            self?.showGroqAPIKeySetupDialog()
+        } showGroqAPIKeyStatus: { [weak self] in
+            self?.showGroqAPIKeyStatusDialog()
+        } getMediaControlEnabled: {
+            UserDefaults.standard.object(forKey: AppSettings.mediaControlEnabledKey) as? Bool
+                ?? RecordingBehaviorSettings.defaultMediaControlEnabled
+        } setMediaControlEnabled: { enabled in
+            UserDefaults.standard.set(enabled, forKey: AppSettings.mediaControlEnabledKey)
+            DebugLog.write("media control enabled=\(enabled)")
         }
         hotkeyController = HotkeyController { [weak self] source in
             Task { @MainActor in self?.toggleRecording(source: source) }
@@ -41,6 +53,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         requestAccessibilityPermissionIfNeeded()
         requestMicrophonePermission()
+        showGroqAPIKeyOnboardingIfNeeded()
+    }
+
+    private func showGroqAPIKeyOnboardingIfNeeded() {
+        let dismissed = UserDefaults.standard.bool(forKey: AppSettings.groqOnboardingDismissedKey)
+        guard GroqAPIKeySetup.shouldShowOnboarding(hasAPIKey: APIKeyStore.hasGroqAPIKey(), dismissed: dismissed) else {
+            return
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard GroqAPIKeySetup.shouldShowOnboarding(
+                hasAPIKey: APIKeyStore.hasGroqAPIKey(),
+                dismissed: UserDefaults.standard.bool(forKey: AppSettings.groqOnboardingDismissedKey)
+            ) else {
+                return
+            }
+            showGroqAPIKeyOnboardingDialog()
+        }
+    }
+
+    private func showGroqAPIKeyOnboardingDialog() {
+        let alert = NSAlert()
+        alert.messageText = "Groq APIキーを設定すると使えます"
+        alert.informativeText = "このアプリのアカウント作成は不要です。無料のGroq APIキーを取得して貼り付けると、Fnキーで音声入力できます。キーはMacのKeychainに保存されます。"
+        alert.addButton(withTitle: "無料キーを取得")
+        alert.addButton(withTitle: "キーを貼り付け")
+        alert.addButton(withTitle: "あとで")
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        switch response {
+        case .alertFirstButtonReturn:
+            NSWorkspace.shared.open(GroqAPIKeySetup.apiKeyURL)
+            showGroqAPIKeySetupDialog(markDismissedOnSave: true)
+        case .alertSecondButtonReturn:
+            showGroqAPIKeySetupDialog(markDismissedOnSave: true)
+        default:
+            UserDefaults.standard.set(true, forKey: AppSettings.groqOnboardingDismissedKey)
+        }
+    }
+
+    private func showGroqAPIKeySetupDialog(markDismissedOnSave: Bool = false) {
+        let alert = NSAlert()
+        alert.messageText = "Groq APIキーを設定"
+        alert.informativeText = "Groqの無料APIキーを貼り付けてください。キーはMacのKeychainに保存され、このアプリのサーバーには送信されません。"
+        alert.addButton(withTitle: "保存")
+        alert.addButton(withTitle: "キャンセル")
+
+        let input = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 420, height: 24))
+        input.placeholderString = "gsk_..."
+        alert.accessoryView = input
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return }
+
+        do {
+            try APIKeyStore.saveGroqAPIKey(input.stringValue)
+            if markDismissedOnSave {
+                UserDefaults.standard.set(true, forKey: AppSettings.groqOnboardingDismissedKey)
+            }
+            showMessage(title: "Groq APIキーを保存しました", message: "次回の音声入力からこのキーを使います。")
+        } catch {
+            DebugLog.write("failed to save Groq API key error=\(error.localizedDescription)")
+            showMessage(title: "Groq APIキーを保存できませんでした", message: error.localizedDescription)
+        }
+    }
+
+    private func showGroqAPIKeyStatusDialog() {
+        if APIKeyStore.hasGroqAPIKey() {
+            showMessage(title: "Groq APIキーは設定済みです", message: "キーはMacのKeychainまたは既存のsecrets.envから読み込まれます。")
+        } else {
+            showMessage(title: "Groq APIキーは未設定です", message: "メニューの「無料のGroq APIキーを取得」からキーを作成し、「Groq APIキーを設定…」で貼り付けてください。")
+        }
+    }
+
+    private func showMessage(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     private func requestAccessibilityPermissionIfNeeded() {
@@ -83,7 +179,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DebugLog.write("startRecording requested source=\(source)")
         overlay.show(.recording, detail: "Enterで停止して送信")
         do {
-            youTubeAudioSnapshot = youTubePauseController.prepareYouTubeBeforeRecording()
+            if RecordingBehaviorSettings.shouldPrepareMediaBeforeRecording(mediaControlEnabled: mediaControlEnabled()) {
+                youTubeAudioSnapshot = youTubePauseController.prepareYouTubeBeforeRecording()
+            } else {
+                youTubeAudioSnapshot = nil
+                DebugLog.write("youtube pause skipped media-control-disabled")
+            }
             _ = try recorder.startRecording()
             isStartingRecording = false
             isRecording = true
@@ -100,6 +201,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DebugLog.write(String(format: "startRecording failed elapsed=%.3fs error=%@", Date().timeIntervalSince(startTime), error.localizedDescription))
             overlay.show(.failed, detail: "録音開始失敗: \(error.localizedDescription)")
         }
+    }
+
+    private func mediaControlEnabled() -> Bool {
+        UserDefaults.standard.object(forKey: AppSettings.mediaControlEnabledKey) as? Bool
+            ?? RecordingBehaviorSettings.defaultMediaControlEnabled
     }
 
     private func finishRecording(source: String) {
@@ -157,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let result = try await pipeline.run(audioFileURL: audioURL, profile: profile)
             DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")
             if emptyGuard.shouldSuppressTranscript(result.finalText, activity: activity) {
-                DebugLog.write("process canceled common silence hallucination transcript=\(result.finalText)")
+                DebugLog.write("process canceled common silence hallucination finalChars=\(result.finalText.count)")
                 try? FileManager.default.removeItem(at: audioURL)
                 overlay.hide()
                 return

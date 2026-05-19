@@ -16,7 +16,7 @@ mkdir -p "$(/usr/bin/dirname "$LOG_FILE")"
 echo "$MARKER" >> "$LOG_FILE"
 
 echo "== shell syntax =="
-/bin/bash -n scripts/build-app.sh scripts/install-app.sh scripts/diagnose-last-run.sh "$0"
+/bin/bash -n scripts/build-app.sh scripts/install-app.sh scripts/diagnose-last-run.sh scripts/package-release.sh "$0"
 
 if [[ "$RUN_TESTS" != "0" ]]; then
   echo "== swift test =="

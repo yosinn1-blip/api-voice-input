@@ -52,6 +52,23 @@ public final class KeychainStore: Sendable {
         return String(data: data, encoding: .utf8)
     }
 
+    public func containsAPIKey(account: String) throws -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+        if status == errSecItemNotFound {
+            return false
+        }
+        guard status == errSecSuccess else {
+            throw KeychainStoreError.unexpectedStatus(status)
+        }
+        return true
+    }
+
     public func deleteAPIKey(account: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

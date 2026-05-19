@@ -7,8 +7,17 @@ CONTENTS="$APP_DIR/Contents"
 MACOS="$CONTENTS/MacOS"
 
 cd "$ROOT"
-swift build -c debug --product APIVoiceInputApp
-BIN_DIR="$(swift build -c debug --show-bin-path)"
+BUILD_CONFIGURATION="${API_VOICE_BUILD_CONFIGURATION:-debug}"
+case "$BUILD_CONFIGURATION" in
+  debug|release) ;;
+  *)
+    echo "Invalid API_VOICE_BUILD_CONFIGURATION: $BUILD_CONFIGURATION" >&2
+    exit 1
+    ;;
+esac
+
+swift build -c "$BUILD_CONFIGURATION" --product APIVoiceInputApp
+BIN_DIR="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)"
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS"
 cp "$BIN_DIR/APIVoiceInputApp" "$MACOS/APIVoiceInputApp"

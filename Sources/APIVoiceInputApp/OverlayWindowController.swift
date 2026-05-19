@@ -1,4 +1,5 @@
 import AppKit
+import APIVoiceInputCore
 
 @MainActor
 final class OverlayWindowController {
@@ -15,6 +16,7 @@ final class OverlayWindowController {
     private let window: NSWindow
     private let waveformView = WaveformView()
     private let progressView = ProcessingGaugeView()
+    private let style = RecordingOverlayVisualStyle.typelessInspired
 
     init() {
         waveformView.translatesAutoresizingMaskIntoConstraints = false
@@ -23,19 +25,19 @@ final class OverlayWindowController {
         let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         contentView.wantsLayer = true
-        contentView.layer?.backgroundColor = NSColor(calibratedRed: 0.16, green: 0.17, blue: 0.18, alpha: 0.76).cgColor
-        contentView.layer?.cornerRadius = 14
+        contentView.layer?.backgroundColor = NSColor(calibratedWhite: 0.035, alpha: 0.90).cgColor
+        contentView.layer?.cornerRadius = CGFloat(style.cornerRadius)
         contentView.layer?.masksToBounds = true
-        contentView.layer?.borderWidth = 1
-        contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.26).cgColor
+        contentView.layer?.borderWidth = 1.1
+        contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
         contentView.addSubview(progressView)
         contentView.addSubview(waveformView)
 
         NSLayoutConstraint.activate([
             waveformView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             waveformView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            waveformView.widthAnchor.constraint(equalToConstant: 88),
-            waveformView.heightAnchor.constraint(equalToConstant: 18),
+            waveformView.widthAnchor.constraint(equalToConstant: CGFloat(style.waveformWidth)),
+            waveformView.heightAnchor.constraint(equalToConstant: CGFloat(style.waveformHeight)),
 
             progressView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             progressView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
@@ -44,7 +46,7 @@ final class OverlayWindowController {
         ])
 
         window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 240, height: 42),
+            contentRect: NSRect(x: 0, y: 0, width: style.windowWidth, height: style.windowHeight),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -54,6 +56,7 @@ final class OverlayWindowController {
         window.backgroundColor = .clear
         window.level = .floating
         window.ignoresMouseEvents = true
+        window.hasShadow = true
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     }
 
@@ -100,8 +103,8 @@ final class OverlayWindowController {
 
     private func positionWindow() {
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let width: CGFloat = 128
-        let height: CGFloat = 32
+        let width = CGFloat(style.windowWidth)
+        let height = CGFloat(style.windowHeight)
         let x = screen.midX - width / 2
         let y = screen.minY + 36
         window.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
@@ -113,8 +116,7 @@ private final class WaveformView: NSView {
     private var phase: CGFloat = 0
     private var targetLevel: CGFloat = 0
     private var displayedLevel: CGFloat = 0
-    private let barCount = 15
-    private var levelHistory = Array(repeating: CGFloat(0), count: 15)
+    private let style = RecordingOverlayVisualStyle.typelessInspired
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -134,10 +136,8 @@ private final class WaveformView: NSView {
                 guard let self else { return }
                 self.phase += 0.28
                 let reactiveTarget = Self.visualLevel(from: self.targetLevel)
-                let attack: CGFloat = reactiveTarget > self.displayedLevel ? 0.68 : 0.30
+                let attack: CGFloat = reactiveTarget > self.displayedLevel ? 0.62 : 0.26
                 self.displayedLevel += (reactiveTarget - self.displayedLevel) * attack
-                self.levelHistory.removeFirst()
-                self.levelHistory.append(self.displayedLevel)
                 self.needsDisplay = true
             }
         }
@@ -160,7 +160,6 @@ private final class WaveformView: NSView {
         phase = 0
         targetLevel = 0
         displayedLevel = 0
-        levelHistory = Array(repeating: CGFloat(0), count: barCount)
         needsDisplay = true
     }
 
@@ -168,23 +167,23 @@ private final class WaveformView: NSView {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let barWidth: CGFloat = 2.8
+        let barCount = style.waveformBarCount
+        let barWidth = CGFloat(style.waveformBarWidth)
         let gap = (bounds.width - CGFloat(barCount) * barWidth) / CGFloat(max(barCount - 1, 1))
         let midY = bounds.midY
         let maxHeight = bounds.height - 2
         let color = NSColor.white.withAlphaComponent(0.92)
         color.setFill()
+        let heightFactors = RecordingWaveformShape.barHeightFactors(
+            level: Double(displayedLevel),
+            phase: Double(phase),
+            barCount: barCount
+        )
 
         for index in 0..<barCount {
             let x = CGFloat(index) * (barWidth + gap)
-            let sample = min(max(levelHistory[index], 0), 1)
-            let center = CGFloat(barCount - 1) / 2
-            let distanceFromCenter = abs(CGFloat(index) - center) / max(center, 1)
-            let centerWeight = 0.62 + (1 - distanceFromCenter) * 0.34
-            let motion = 0.92 + 0.13 * sin(phase + CGFloat(index) * 1.35)
-            let ripple = sample * 0.055 * (sin(phase * 1.7 + CGFloat(index) * 0.85) + 1) / 2
-            let visualLevel = min(0.88, sample * centerWeight * motion + ripple)
-            let height = max(2.0, (0.11 + visualLevel * 0.74) * maxHeight)
+            let visualLevel = CGFloat(heightFactors[index])
+            let height = max(2.8, visualLevel * maxHeight)
             let rect = NSRect(x: x, y: midY - height / 2, width: barWidth, height: height)
             NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         }
@@ -195,6 +194,7 @@ private final class ProcessingGaugeView: NSView {
     private var timer: Timer?
     private var phase: CGFloat = 0
     private var pulse: CGFloat = 0
+    private let style = ProcessingGaugeVisualStyle.typelessInspired
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -253,17 +253,12 @@ private final class ProcessingGaugeView: NSView {
 
         let fillWidth = bounds.width * min(max(phase, 0), 1)
         let fillRect = NSRect(x: bounds.minX, y: bounds.minY, width: fillWidth, height: bounds.height)
-        NSColor(calibratedRed: 0.74, green: 0.82, blue: 0.90, alpha: 0.58).setFill()
+        NSColor(
+            calibratedRed: style.fillRed,
+            green: style.fillGreen,
+            blue: style.fillBlue,
+            alpha: style.fillAlpha
+        ).setFill()
         NSBezierPath(rect: fillRect).fill()
-
-        let edgeAlpha = 0.34 + 0.10 * (sin(pulse) + 1) / 2
-        let edgeRect = NSRect(
-            x: max(bounds.minX, fillRect.maxX - 14),
-            y: bounds.minY,
-            width: min(18, fillWidth),
-            height: bounds.height
-        )
-        NSColor(calibratedRed: 0.94, green: 0.97, blue: 1.0, alpha: edgeAlpha).setFill()
-        NSBezierPath(rect: edgeRect).fill()
     }
 }
