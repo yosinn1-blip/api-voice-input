@@ -1,5 +1,7 @@
-import APIVoiceInputCore
-import Foundation
+import AppKit
 
-let profile = VoiceProfile.defaultJapanese
-print("APIVoiceInputApp boot: \(profile.displayName)")
+let app = NSApplication.shared
+let delegate = AppDelegate()
+app.delegate = delegate
+app.setActivationPolicy(.accessory)
+app.run()
