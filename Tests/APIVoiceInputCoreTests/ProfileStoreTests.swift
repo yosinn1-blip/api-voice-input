@@ -2,12 +2,12 @@ import XCTest
 @testable import APIVoiceInputCore
 
 final class ProfileStoreTests: XCTestCase {
-    func testDefaultProfileIsJapaneseAndPasteOnly() {
+    func testDefaultProfileUsesPasteThenEnter() {
         let profile = VoiceProfile.defaultJapanese
         XCTAssertEqual(profile.sttLanguageHint, "ja")
         XCTAssertEqual(profile.transcriptionProviderID, "groq-whisper-large-v3-turbo")
         XCTAssertEqual(profile.cleanupProviderID, "rule-based-filler-removal")
-        XCTAssertEqual(profile.pasteMode, .pasteOnly)
+        XCTAssertEqual(profile.pasteMode, .pasteThenEnter)
     }
 
     func testLoadCreatesDefaultProfileWhenFileDoesNotExist() throws {

@@ -38,6 +38,6 @@ public struct VoiceProfile: Codable, Equatable, Identifiable, Sendable {
         transcriptionProviderID: "groq-whisper-large-v3-turbo",
         cleanupProviderID: "rule-based-filler-removal",
         cleanupPrompt: "日本語として自然に整え、意味を変えず、余計な説明を追加しないでください。",
-        pasteMode: .pasteOnly
+        pasteMode: .pasteThenEnter
     )
 }
