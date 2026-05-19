@@ -2,7 +2,7 @@ import Foundation
 
 public enum YouTubePauseFallbackAction: Equatable {
     case none
-    case muteSystemOutput
+    case tryMediaRemotePause
 }
 
 public enum YouTubePauseFallbackDecision {
@@ -13,7 +13,7 @@ public enum YouTubePauseFallbackDecision {
         let errors = values["errors", default: 0]
 
         if tabs > 0 && pausedVideos == 0 && errors > 0 {
-            return .muteSystemOutput
+            return .tryMediaRemotePause
         }
         return .none
     }

@@ -33,9 +33,12 @@ struct YouTubePauseController {
             let script = Self.pauseScript(for: target)
             let result = Self.runAppleScript(script)
             DebugLog.write("youtube pause browser=\(target.name) status=\(result.status) output=\(result.output)")
-            if audioSnapshot == nil && YouTubePauseFallbackDecision.fallbackAction(scriptOutput: result.output) == .muteSystemOutput {
-                audioSnapshot = Self.muteSystemOutput()
-                DebugLog.write("youtube pause fallback=system-output-muted browser=\(target.name) reason=javascript-pause-failed")
+            if audioSnapshot == nil && YouTubePauseFallbackDecision.fallbackAction(scriptOutput: result.output) == .tryMediaRemotePause {
+                let didPause = Self.tryMediaRemotePause(for: target)
+                if didPause == false {
+                    audioSnapshot = Self.muteSystemOutput()
+                    DebugLog.write("youtube pause fallback=system-output-muted browser=\(target.name) reason=media-remote-pause-unavailable")
+                }
             }
         }
         return audioSnapshot
@@ -130,6 +133,18 @@ struct YouTubePauseController {
             return tabURL starts with "https://youtube.com/" or tabURL starts with "http://youtube.com/" or tabURL starts with "https://www.youtube.com/" or tabURL starts with "http://www.youtube.com/" or tabURL starts with "https://m.youtube.com/" or tabURL starts with "http://m.youtube.com/" or tabURL starts with "https://music.youtube.com/" or tabURL starts with "http://music.youtube.com/" or tabURL starts with "https://youtu.be/" or tabURL starts with "http://youtu.be/"
         end isYouTubeURL
         """
+    }
+
+    private static func tryMediaRemotePause(for target: BrowserTarget) -> Bool {
+        let controller = MediaRemotePauseController()
+        let snapshot = controller.snapshot()
+        DebugLog.write("youtube pause media-remote snapshot displayID=\(snapshot.displayID ?? "nil") isPlaying=\(snapshot.isPlaying.map(String.init) ?? "nil") target=\(target.bundleIdentifier)")
+        guard snapshot.displayID == target.bundleIdentifier, snapshot.isPlaying == true else {
+            return false
+        }
+        let sent = controller.sendPause()
+        DebugLog.write("youtube pause fallback=media-remote-pause browser=\(target.name) sent=\(sent)")
+        return sent
     }
 
     private static func muteSystemOutput() -> SystemAudioSnapshot? {
