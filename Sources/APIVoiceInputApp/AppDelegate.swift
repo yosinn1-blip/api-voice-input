@@ -13,11 +13,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isRecording = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusMenu = StatusMenuController { [weak self] in
-            self?.toggleRecording()
+        DebugLog.write("app launched")
+        overlay.show(.pasted, detail: "起動しました")
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            if self.isRecording == false { self.overlay.hide() }
         }
-        hotkeyController = HotkeyController { [weak self] in
-            Task { @MainActor in self?.toggleRecording() }
+        statusMenu = StatusMenuController { [weak self] in
+            self?.toggleRecording(source: "menu")
+        }
+        hotkeyController = HotkeyController { [weak self] source in
+            Task { @MainActor in self?.toggleRecording(source: source) }
         }
         hotkeyController?.registerCommandShiftSpace()
         hotkeyController?.registerF19Bridge()
@@ -38,31 +44,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func toggleRecording() {
+    private func toggleRecording(source: String) {
+        DebugLog.write("toggle source=\(source) isRecording=\(isRecording)")
+        overlay.show(.pasted, detail: "入力検出: \(source)")
         if isRecording {
-            finishRecording()
+            finishRecording(source: source)
         } else {
-            startRecording()
+            startRecording(source: source)
         }
     }
 
-    private func startRecording() {
+    private func startRecording(source: String) {
+        DebugLog.write("startRecording requested source=\(source)")
         do {
             _ = try recorder.startRecording()
             isRecording = true
+            DebugLog.write("startRecording ok url=\(recorder.currentURL?.path ?? "nil")")
             overlay.show(.recording, detail: "Fn / F19 / ⌘⇧Spaceで停止")
         } catch {
-            overlay.show(.failed, detail: error.localizedDescription)
+            DebugLog.write("startRecording failed error=\(error.localizedDescription)")
+            overlay.show(.failed, detail: "録音開始失敗: \(error.localizedDescription)")
         }
     }
 
-    private func finishRecording() {
+    private func finishRecording(source: String) {
+        DebugLog.write("finishRecording requested source=\(source)")
         guard let audioURL = recorder.stopRecording() else {
             isRecording = false
+            DebugLog.write("finishRecording failed no audioURL")
             overlay.show(.failed, detail: "録音ファイルなし")
             return
         }
         isRecording = false
+        DebugLog.write("finishRecording ok url=\(audioURL.path)")
         overlay.show(.transcribing)
         Task {
             await process(audioURL: audioURL)
@@ -73,13 +87,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let groqKey = try keychain.loadAPIKey(account: AppSettings.groqKeyAccount)
             guard let groqKey, groqKey.isEmpty == false else {
+                DebugLog.write("process failed missing Groq API key")
                 overlay.show(.failed, detail: "Groq API key未設定")
                 return
             }
             let profile = VoiceProfile.defaultJapanese
             let transcription = GroqTranscriptionProvider(apiKey: groqKey)
             let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: NoCleanupProvider())
+            DebugLog.write("process transcription begin")
             let result = try await pipeline.run(audioFileURL: audioURL, profile: profile)
+            DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")
             let paste = PasteController(clipboard: SystemClipboardClient(), keyboard: SystemKeyboardClient())
             try paste.paste(result.finalText, mode: profile.pasteMode)
             overlay.show(.pasted)
@@ -87,7 +104,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try? await Task.sleep(nanoseconds: 900_000_000)
             overlay.hide()
         } catch {
-            overlay.show(.failed, detail: error.localizedDescription)
+            DebugLog.write("startRecording failed error=\(error.localizedDescription)")
+            overlay.show(.failed, detail: "録音開始失敗: \(error.localizedDescription)")
         }
     }
 }

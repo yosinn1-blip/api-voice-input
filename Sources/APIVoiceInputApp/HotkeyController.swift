@@ -10,9 +10,9 @@ final class HotkeyController {
     private var fnRunLoopSource: CFRunLoopSource?
     private var fnIsDown = false
     private var lastFnPress = Date.distantPast
-    private let onPressed: @Sendable () -> Void
+    private let onPressed: @Sendable (_ source: String) -> Void
 
-    init(onPressed: @escaping @Sendable () -> Void) {
+    init(onPressed: @escaping @Sendable (_ source: String) -> Void) {
         self.onPressed = onPressed
     }
 
@@ -22,23 +22,26 @@ final class HotkeyController {
         InstallEventHandler(GetApplicationEventTarget(), { _, _, userData in
             guard let userData else { return noErr }
             let controller = Unmanaged<HotkeyController>.fromOpaque(userData).takeUnretainedValue()
-            controller.onPressed()
+            controller.onPressed("carbon-hotkey")
             return noErr
         }, 1, &eventType, selfPointer, &handler)
 
         let hotKeyID = EventHotKeyID(signature: OSType(0x4156494E), id: 1)
-        RegisterEventHotKey(UInt32(kVK_Space), UInt32(cmdKey | shiftKey), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
+        let status = RegisterEventHotKey(UInt32(kVK_Space), UInt32(cmdKey | shiftKey), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
+        DebugLog.write("register Command+Shift+Space status=\(status)")
     }
 
     func registerF19Bridge() {
         let hotKeyID = EventHotKeyID(signature: OSType(0x4156494E), id: 2)
-        RegisterEventHotKey(UInt32(kVK_F19), 0, hotKeyID, GetApplicationEventTarget(), 0, &f19HotKeyRef)
+        let status = RegisterEventHotKey(UInt32(kVK_F19), 0, hotKeyID, GetApplicationEventTarget(), 0, &f19HotKeyRef)
+        DebugLog.write("register F19 bridge status=\(status)")
     }
 
     @discardableResult
     func registerFnKey() -> Bool {
         let eventMask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
         let selfPointer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        DebugLog.write("register direct Fn event tap begin")
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -47,6 +50,7 @@ final class HotkeyController {
             callback: fnEventTapCallback,
             userInfo: selfPointer
         ) else {
+            DebugLog.write("register direct Fn event tap failed")
             return false
         }
 
@@ -55,6 +59,7 @@ final class HotkeyController {
         CGEvent.tapEnable(tap: tap, enable: true)
         fnEventTap = tap
         fnRunLoopSource = source
+        DebugLog.write("register direct Fn event tap ok")
         return true
     }
 
@@ -71,7 +76,7 @@ final class HotkeyController {
             return
         }
         lastFnPress = now
-        onPressed()
+        onPressed("direct-fn-eventtap")
     }
 
     deinit {

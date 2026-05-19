@@ -261,3 +261,10 @@ Everything else should wait until the loop feels good.
 - Change: the app now also registers `F19` as a hidden recording toggle. `/Users/yoshiki/.local/bin/voice-input-mode api-voice` maps physical `Fn` to `F19` through Karabiner.
 - Active mode after this change: `api-voice`, description `Voice input mode: API音声ソフト — Fn sends F19`.
 - Fallback: `Command+Shift+Space` still toggles recording even if Karabiner is disabled.
+
+## Debug visibility update
+
+- The app now shows a short startup overlay (`起動しました`) so launch is visually confirmed.
+- Any hotkey/Fn/F19/menu trigger now briefly shows `入力検出: <source>` before recording starts or stops.
+- Debug log path: `~/Library/Application Support/APIVoiceInput/debug.log`.
+- The log records app launch, hotkey registration status, direct Fn event tap registration, toggle source, recording start/finish, STT start/success/failure, and missing API key state.
