@@ -1,3 +1,4 @@
+import APIVoiceInputCore
 import AppKit
 import Foundation
 
@@ -26,10 +27,16 @@ struct YouTubePauseController {
                 return
             }
 
+            var didUseFallback = false
             for target in targets {
                 let script = Self.pauseScript(for: target)
                 let result = Self.runAppleScript(script)
                 DebugLog.write("youtube pause browser=\(target.name) status=\(result.status) output=\(result.output)")
+                if didUseFallback == false && YouTubePauseFallbackDecision.shouldUseMediaKeyFallback(scriptOutput: result.output) {
+                    Self.sendPlayPauseMediaKey()
+                    didUseFallback = true
+                    DebugLog.write("youtube pause fallback=media-key browser=\(target.name) reason=javascript-pause-failed")
+                }
             }
         }
     }
@@ -117,6 +124,29 @@ struct YouTubePauseController {
             return tabURL starts with "https://youtube.com/" or tabURL starts with "http://youtube.com/" or tabURL starts with "https://www.youtube.com/" or tabURL starts with "http://www.youtube.com/" or tabURL starts with "https://m.youtube.com/" or tabURL starts with "http://m.youtube.com/" or tabURL starts with "https://music.youtube.com/" or tabURL starts with "http://music.youtube.com/" or tabURL starts with "https://youtu.be/" or tabURL starts with "http://youtu.be/"
         end isYouTubeURL
         """
+    }
+
+    private static func sendPlayPauseMediaKey() {
+        let keyTypePlay: UInt32 = 16
+        postMediaKey(keyType: keyTypePlay, isKeyDown: true)
+        postMediaKey(keyType: keyTypePlay, isKeyDown: false)
+    }
+
+    private static func postMediaKey(keyType: UInt32, isKeyDown: Bool) {
+        let keyState: UInt32 = isKeyDown ? 0xA : 0xB
+        let data1 = Int((keyType << 16) | (keyState << 8))
+        let event = NSEvent.otherEvent(
+            with: .systemDefined,
+            location: .zero,
+            modifierFlags: NSEvent.ModifierFlags(rawValue: 0xA00),
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            subtype: 8,
+            data1: data1,
+            data2: -1
+        )
+        event?.cgEvent?.post(tap: .cghidEventTap)
     }
 
     private static func runAppleScript(_ script: String) -> (status: Int32, output: String) {
