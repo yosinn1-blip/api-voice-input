@@ -231,3 +231,12 @@ The first build should only prove the core loop:
 - Keychain-backed API key storage
 
 Everything else should wait until the loop feels good.
+
+## MVP build verification
+
+- Build command: `./scripts/build-app.sh`
+- App path: `/Users/yoshiki/api音声ソフト/build/API音声ソフト.app`
+- Automated checks: `swift test`, `swift build`, `plutil -lint Info.plist`, `codesign --verify --deep --strict build/API音声ソフト.app`
+- Paid fallback: not enabled
+- API key storage helper: `/Users/yoshiki/api音声ソフト/scripts/set-groq-key.sh` stores the Groq key in macOS Keychain without writing it to repository files
+- Manual target still remaining: TextEdit blank document with real Groq key set, verifying hotkey -> recording overlay -> stop -> Groq STT -> paste
