@@ -246,3 +246,11 @@ Everything else should wait until the loop feels good.
 - Command: `open -g build/API音声ソフト.app`
 - Result: `APIVoiceInputApp` process launched successfully and was then quit.
 - Keychain state during smoke test: Groq API key was not present, so real STT/paste flow was intentionally not run.
+
+## Fn hotkey verification note
+
+- Change: physical `Fn` now registers as an additional recording toggle through a listen-only `CGEvent` flags-changed event tap.
+- Fallback: `Command+Shift+Space` remains available if Fn is blocked by macOS permissions or conflicts with another dictation app.
+- Build verification: `swift test`, `swift build`, `./scripts/build-app.sh`, `plutil -lint Info.plist`, and `codesign --verify --deep --strict build/API音声ソフト.app` passed.
+- Launch smoke: app process launched successfully after the Fn change and was quit.
+- Manual check still needed: press physical `Fn` in TextEdit to confirm start/stop on the user's keyboard and current Accessibility/Input Monitoring permissions.

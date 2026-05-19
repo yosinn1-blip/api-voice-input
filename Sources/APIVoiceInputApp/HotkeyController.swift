@@ -1,9 +1,14 @@
 import Carbon
+import CoreGraphics
 import Foundation
 
 final class HotkeyController {
     private var hotKeyRef: EventHotKeyRef?
     private var handler: EventHandlerRef?
+    private var fnEventTap: CFMachPort?
+    private var fnRunLoopSource: CFRunLoopSource?
+    private var fnIsDown = false
+    private var lastFnPress = Date.distantPast
     private let onPressed: @Sendable () -> Void
 
     init(onPressed: @escaping @Sendable () -> Void) {
@@ -24,6 +29,45 @@ final class HotkeyController {
         RegisterEventHotKey(UInt32(kVK_Space), UInt32(cmdKey | shiftKey), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
     }
 
+    @discardableResult
+    func registerFnKey() -> Bool {
+        let eventMask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+        let selfPointer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: eventMask,
+            callback: fnEventTapCallback,
+            userInfo: selfPointer
+        ) else {
+            return false
+        }
+
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        fnEventTap = tap
+        fnRunLoopSource = source
+        return true
+    }
+
+    fileprivate func handleFlagsChanged(_ event: CGEvent) {
+        let isFnDown = event.flags.contains(.maskSecondaryFn)
+        defer { fnIsDown = isFnDown }
+
+        guard isFnDown, fnIsDown == false else {
+            return
+        }
+
+        let now = Date()
+        guard now.timeIntervalSince(lastFnPress) > 0.25 else {
+            return
+        }
+        lastFnPress = now
+        onPressed()
+    }
+
     deinit {
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
@@ -31,5 +75,25 @@ final class HotkeyController {
         if let handler {
             RemoveEventHandler(handler)
         }
+        if let fnRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), fnRunLoopSource, .commonModes)
+        }
+        if let fnEventTap {
+            CFMachPortInvalidate(fnEventTap)
+        }
     }
+}
+
+private func fnEventTapCallback(
+    proxy: CGEventTapProxy,
+    type: CGEventType,
+    event: CGEvent,
+    refcon: UnsafeMutableRawPointer?
+) -> Unmanaged<CGEvent>? {
+    guard type == .flagsChanged, let refcon else {
+        return Unmanaged.passUnretained(event)
+    }
+    let controller = Unmanaged<HotkeyController>.fromOpaque(refcon).takeUnretainedValue()
+    controller.handleFlagsChanged(event)
+    return Unmanaged.passUnretained(event)
 }
