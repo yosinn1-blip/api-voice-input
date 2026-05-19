@@ -177,7 +177,7 @@ private final class ProcessingGaugeView: NSView {
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.phase = (self.phase + 0.035).truncatingRemainder(dividingBy: 1)
+                self.phase = (self.phase + 0.026).truncatingRemainder(dividingBy: 1)
                 self.needsDisplay = true
             }
         }
@@ -201,29 +201,47 @@ private final class ProcessingGaugeView: NSView {
         super.draw(dirtyRect)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
+        let trackInset: CGFloat = 18
+        let trackHeight: CGFloat = 3
+        let trackRect = NSRect(
+            x: bounds.minX + trackInset,
+            y: bounds.midY - trackHeight / 2,
+            width: max(1, bounds.width - trackInset * 2),
+            height: trackHeight
+        )
+        NSColor.white.withAlphaComponent(0.22).setFill()
+        NSBezierPath(
+            roundedRect: trackRect,
+            xRadius: trackHeight / 2,
+            yRadius: trackHeight / 2
+        ).fill()
+
         guard timer != nil else { return }
 
-        let lineWidth: CGFloat = 13
-        let glowWidth: CGFloat = 34
-        let travel = bounds.width + glowWidth
-        let centerX = phase * travel - glowWidth / 2
+        let highlightWidth: CGFloat = 30
+        let travel = max(1, trackRect.width - highlightWidth)
+        let highlightX = trackRect.minX + phase * travel
 
         let glowRect = NSRect(
-            x: centerX - glowWidth / 2,
-            y: 0,
-            width: glowWidth,
-            height: bounds.height
+            x: highlightX - 8,
+            y: trackRect.midY - 5,
+            width: highlightWidth + 16,
+            height: 10
         )
-        NSColor.white.withAlphaComponent(0.16).setFill()
-        NSBezierPath(rect: glowRect).fill()
+        NSColor.white.withAlphaComponent(0.14).setFill()
+        NSBezierPath(roundedRect: glowRect, xRadius: 5, yRadius: 5).fill()
 
-        let lineRect = NSRect(
-            x: centerX - lineWidth / 2,
-            y: 3,
-            width: lineWidth,
-            height: bounds.height - 6
+        let highlightRect = NSRect(
+            x: highlightX,
+            y: trackRect.minY,
+            width: highlightWidth,
+            height: trackRect.height
         )
-        NSColor.white.withAlphaComponent(0.72).setFill()
-        NSBezierPath(roundedRect: lineRect, xRadius: lineWidth / 2, yRadius: lineWidth / 2).fill()
+        NSColor.white.withAlphaComponent(0.88).setFill()
+        NSBezierPath(
+            roundedRect: highlightRect,
+            xRadius: trackHeight / 2,
+            yRadius: trackHeight / 2
+        ).fill()
     }
 }
