@@ -17,12 +17,14 @@ Run:
 ./scripts/package-release.sh
 ```
 
-Expected artifacts:
+The packaging script reads `CFBundleShortVersionString` and `CFBundleVersion` from `Info.plist` and writes artifacts as `api-voice-input-<version>-<build>`.
+
+For `CFBundleShortVersionString=0.1.3` and `CFBundleVersion=4`, expected artifacts are:
 
 ```text
-dist/api-voice-input-<version>.zip
-dist/api-voice-input-<version>.zip.sha256
-dist/api-voice-input-<version>-release-notes.txt
+dist/api-voice-input-0.1.3-4.zip
+dist/api-voice-input-0.1.3-4.zip.sha256
+dist/api-voice-input-0.1.3-4-release-notes.txt
 ```
 
 ## Manual smoke test
@@ -38,6 +40,9 @@ dist/api-voice-input-<version>-release-notes.txt
 Only after the ZIP is uploaded to a stable public URL:
 
 - [ ] Verify the GitHub Release download link opens
+- [ ] Verify the `.zip.sha256` link opens
+- [ ] Verify the release notes link opens
+- [ ] Update `README.md` direct download links if the version or filename changed
 - [ ] Update `docs/index.html` download URL if the version or filename changed
 - [ ] Verify https://api-voice-input.vercel.app/ returns 200
 - [ ] Update `/Users/yoshiki/dev/zenn-content/articles/ai-voice-input-self-built.md`
