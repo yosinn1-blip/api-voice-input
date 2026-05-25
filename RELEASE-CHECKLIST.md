@@ -17,6 +17,14 @@ Run:
 ./scripts/package-release.sh
 ```
 
+For notarized distribution, package with a Developer ID identity:
+
+```bash
+CODESIGN_IDENTITY="Developer ID Application: YOUR NAME (TEAMID)" \
+  CODESIGN_TIMESTAMP=on \
+  ./scripts/package-release.sh
+```
+
 The packaging script reads `CFBundleShortVersionString` and `CFBundleVersion` from `Info.plist` and writes artifacts as `api-voice-input-<version>-<build>`.
 
 For `CFBundleShortVersionString=0.1.3` and `CFBundleVersion=4`, expected artifacts are:
@@ -34,8 +42,8 @@ The current MVP can still be shipped as a direct-download signed ZIP, but broade
 - [ ] Review `docs/notarization.md`
 - [ ] Confirm `Developer ID Application` certificate is available in Keychain
 - [ ] Store `notarytool` credentials in Keychain, not in repo files
-- [ ] Submit the signed ZIP with `xcrun notarytool submit ... --wait`
-- [ ] Staple and validate the accepted app bundle before creating the final public ZIP
+- [ ] Run `./scripts/notarize-release.sh`
+- [ ] Confirm the script recreated the final ZIP and `.zip.sha256`
 
 ## Update public links
 
