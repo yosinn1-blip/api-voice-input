@@ -8,6 +8,11 @@ struct GroqAPIKeySetupTests {
         #expect(GroqAPIKeySetup.apiKeyURL.absoluteString == "https://console.groq.com/keys")
     }
 
+    @Test("opens the public first-run setup guide")
+    func setupGuideURL() {
+        #expect(GroqAPIKeySetup.setupGuideURL.absoluteString == "https://api-voice-input.vercel.app/")
+    }
+
     @Test("normalizes pasted keys without keeping surrounding whitespace or quotes")
     func normalizedPastedKey() {
         #expect(GroqAPIKeySetup.normalizedAPIKey("  \"gsk_example\"  ") == "gsk_example")

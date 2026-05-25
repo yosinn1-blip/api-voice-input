@@ -7,6 +7,7 @@ final class StatusMenuController: NSObject {
     private let toggleAction: () -> Void
     private let openAccessibilitySettings: () -> Void
     private let openGroqAPIKeyPage: () -> Void
+    private let openSetupGuide: () -> Void
     private let setGroqAPIKey: () -> Void
     private let showGroqAPIKeyStatus: () -> Void
     private let getMediaControlEnabled: () -> Bool
@@ -17,6 +18,7 @@ final class StatusMenuController: NSObject {
         toggleAction: @escaping () -> Void,
         openAccessibilitySettings: @escaping () -> Void,
         openGroqAPIKeyPage: @escaping () -> Void,
+        openSetupGuide: @escaping () -> Void,
         setGroqAPIKey: @escaping () -> Void,
         showGroqAPIKeyStatus: @escaping () -> Void,
         getMediaControlEnabled: @escaping () -> Bool,
@@ -25,6 +27,7 @@ final class StatusMenuController: NSObject {
         self.toggleAction = toggleAction
         self.openAccessibilitySettings = openAccessibilitySettings
         self.openGroqAPIKeyPage = openGroqAPIKeyPage
+        self.openSetupGuide = openSetupGuide
         self.setGroqAPIKey = setGroqAPIKey
         self.showGroqAPIKeyStatus = showGroqAPIKeyStatus
         self.getMediaControlEnabled = getMediaControlEnabled
@@ -39,6 +42,9 @@ final class StatusMenuController: NSObject {
         mediaControlItem.state = getMediaControlEnabled() ? .on : .off
         menu.addItem(mediaControlItem)
         menu.addItem(NSMenuItem.separator())
+        let setupGuide = NSMenuItem(title: "初回セットアップを開く", action: #selector(openFirstRunSetupGuide), keyEquivalent: "")
+        setupGuide.target = self
+        menu.addItem(setupGuide)
         let getGroqKey = NSMenuItem(title: "無料のGroq APIキーを取得", action: #selector(openGroqKeyPage), keyEquivalent: "")
         getGroqKey.target = self
         menu.addItem(getGroqKey)
@@ -63,6 +69,10 @@ final class StatusMenuController: NSObject {
 
     @objc private func openAccessibility() {
         openAccessibilitySettings()
+    }
+
+    @objc private func openFirstRunSetupGuide() {
+        openSetupGuide()
     }
 
     @objc private func openGroqKeyPage() {

@@ -50,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
         } openGroqAPIKeyPage: {
             NSWorkspace.shared.open(GroqAPIKeySetup.apiKeyURL)
+        } openSetupGuide: {
+            NSWorkspace.shared.open(GroqAPIKeySetup.setupGuideURL)
         } setGroqAPIKey: { [weak self] in
             self?.showGroqAPIKeySetupDialog()
         } showGroqAPIKeyStatus: { [weak self] in
