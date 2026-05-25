@@ -44,6 +44,11 @@ fi
 if ! /usr/bin/grep -Fq "api-voice-input-${VERSION}-${BUILD}.zip" docs/index.html; then
   echo "WARN: docs/index.html does not reference current artifact name: api-voice-input-${VERSION}-${BUILD}.zip" >&2
 fi
+/usr/bin/grep -Fq "api-voice-input-${VERSION}-${BUILD}.zip.sha256" README.md
+/usr/bin/grep -Fq "api-voice-input-${VERSION}-${BUILD}-release-notes.txt" README.md
+/usr/bin/grep -Fq "api-voice-input-${VERSION}-${BUILD}.zip.sha256" docs/index.html
+/usr/bin/grep -Fq "api-voice-input-${VERSION}-${BUILD}-release-notes.txt" docs/index.html
+/usr/bin/grep -Fq 'class="subactions"' docs/index.html
 
 printf '== notarization script checks ==\n'
 /usr/bin/grep -Fq 'xcrun notarytool submit' scripts/notarize-release.sh
