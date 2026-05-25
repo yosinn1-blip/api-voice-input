@@ -24,7 +24,10 @@ ChatGPT / Claude / Codex などの入力欄に、`Fn` と `Enter` だけで素�
 
 最新版はGitHub Releasesからダウンロードできます。
 
-- https://github.com/yosinn1-blip/api-voice-input/releases
+- 最新Release: https://github.com/yosinn1-blip/api-voice-input/releases/latest
+- v0.1.3 ZIP: https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.3/api-voice-input-0.1.3-4.zip
+- SHA256: https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.3/api-voice-input-0.1.3-4.zip.sha256
+- Release notes: https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.3/api-voice-input-0.1.3-4-release-notes.txt
 
 このアプリはメニューバー常駐型です。起動しても通常のウィンドウは開かず、画面上部のメニューバーに `🎙` が表示されます。
 
@@ -65,7 +68,6 @@ APIキーはMacのKeychainに保存されます。
 このアプリは画面上の×/チェックボタンをクリックする設計ではありません。`Fn` と `Enter` を覚える代わりに、視線を入力欄から外さずに操作できます。
 
 長い文章を `Fn → Enter` で送る場合は、貼り付け完了を待つために自動Enter送信まで少しだけ待ちます。もし送信されない場合は、もう一度 `Enter` を押してください。
-
 
 ## Groq無料API枠の目安
 
