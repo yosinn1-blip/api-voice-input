@@ -44,47 +44,55 @@ swift test
 ./scripts/dev-cycle.sh
 ```
 
-2. Package the signed app.
+2. Package with a Developer ID Application certificate. For notarization, release signing should use a secure timestamp.
 
 ```bash
-./scripts/package-release.sh
+CODESIGN_IDENTITY="Developer ID Application: YOUR NAME (TEAMID)" \
+  CODESIGN_TIMESTAMP=on \
+  ./scripts/package-release.sh
 ```
 
-3. Submit the ZIP to Apple's notary service.
+`CODESIGN_TIMESTAMP=on` forces `codesign --timestamp`. If `CODESIGN_IDENTITY` starts with `Developer ID Application:`, `scripts/build-app.sh` also enables timestamping automatically.
+
+3. Submit, staple, validate, and recreate the ZIP.
 
 ```bash
-xcrun notarytool submit "dist/api-voice-input-<version>-<build>.zip" \
-  --keychain-profile "api-voice-input-notary" \
-  --wait
+./scripts/notarize-release.sh
 ```
 
-4. If accepted, staple the ticket to the app bundle before the final public ZIP is created.
+The script uses:
+
+- `NOTARY_PROFILE=api-voice-input-notary` by default
+- `APP_PATH=build/API音声ソフト.app` by default
+- `dist/api-voice-input-<version>-<build>.zip` by default
+
+Override when needed:
 
 ```bash
-xcrun stapler staple "path/to/API音声ソフト.app"
-xcrun stapler validate "path/to/API音声ソフト.app"
-spctl --assess --type execute --verbose=4 "path/to/API音声ソフト.app"
+NOTARY_PROFILE="api-voice-input-notary" \
+  APP_PATH="/path/to/API音声ソフト.app" \
+  ./scripts/notarize-release.sh
 ```
 
-5. Re-create the public ZIP from the stapled app bundle.
+The helper script performs these checks/actions:
 
-```bash
-COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --keepParent --norsrc \
-  "path/to/API音声ソフト.app" \
-  "dist/api-voice-input-<version>-<build>.zip"
-/usr/bin/shasum -a 256 "dist/api-voice-input-<version>-<build>.zip" \
-  > "dist/api-voice-input-<version>-<build>.zip.sha256"
-```
+- verifies the app bundle exists
+- verifies the release ZIP exists
+- verifies the app is signed by `Developer ID Application`
+- submits the ZIP with `xcrun notarytool submit ... --wait`
+- staples and validates the app bundle
+- recreates the final public ZIP
+- rewrites the `.zip.sha256`
 
-6. Upload the final ZIP, `.sha256`, and release notes to GitHub Releases.
+4. Upload the final ZIP, `.sha256`, and release notes to GitHub Releases.
 
-7. Update public links.
+5. Update public links.
 
 ```bash
 bash scripts/update-release-links.sh
 ```
 
-8. Deploy the docs site and verify public links.
+6. Deploy the docs site and verify public links.
 
 ## Expected failure modes
 
