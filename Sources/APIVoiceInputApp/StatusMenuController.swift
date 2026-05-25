@@ -82,4 +82,8 @@ final class StatusMenuController: NSObject {
         setMediaControlEnabled(nextValue)
         mediaControlItem.state = nextValue ? .on : .off
     }
+
+    func setConversationModeActive(_ active: Bool) {
+        item.button?.title = active ? "💬" : "🎙"
+    }
 }

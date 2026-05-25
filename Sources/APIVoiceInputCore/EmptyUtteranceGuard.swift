@@ -4,8 +4,7 @@ public struct EmptyUtteranceGuard: Sendable {
     public static let minimumUsefulDurationSeconds = 0.35
     public static let silenceRMSDBFS = -50.0
     public static let silencePeakDBFS = -38.0
-    public static let quietHallucinationRMSDBFS = -42.0
-    public static let quietHallucinationPeakDBFS = -25.0
+    public static let quietHallucinationRMSDBFS = -30.0
 
     public init() {}
 
@@ -21,15 +20,39 @@ public struct EmptyUtteranceGuard: Sendable {
         guard Self.commonSilenceHallucinations.contains(normalized) else {
             return false
         }
-        return activity.rmsDBFS < Self.quietHallucinationRMSDBFS && activity.peakDBFS < Self.quietHallucinationPeakDBFS
+        // Peak is deliberately excluded: transient background noise (AC, keyboard) can spike peak
+        // above -18 dBFS even with no speech, causing false negatives. RMS alone reliably
+        // distinguishes silence from actual voice.
+        return activity.rmsDBFS < Self.quietHallucinationRMSDBFS
     }
 
     private static let commonSilenceHallucinations: Set<String> = [
+        // 感謝系
+        "ありがとうございました",
+        "ありがとうございます",
         "ありがとうございました",
         "ご視聴ありがとうございました",
+        "ご視聴ありがとうございます",
         "ご清聴ありがとうございました",
+        "ご清聴ありがとうございます",
+        "ご覧いただきありがとうございました",
+        "最後までご覧いただきありがとうございました",
+        "最後までご視聴ありがとうございました",
+        "本日もありがとうございました",
+        // 締め・挨拶系
         "お疲れ様でした",
-        "以上です"
+        "お疲れ様です",
+        "失礼しました",
+        "失礼いたします",
+        "以上です",
+        "以上になります",
+        "それでは失礼します",
+        // 字幕・チャンネル系（YouTube幻覚の定番）
+        "字幕は自動生成されています",
+        "チャンネル登録よろしくお願いします",
+        "チャンネル登録よろしくお願いいたします",
+        "次回もよろしくお願いします",
+        "よろしくお願いいたします"
     ]
 
     private static func normalize(_ text: String) -> String {

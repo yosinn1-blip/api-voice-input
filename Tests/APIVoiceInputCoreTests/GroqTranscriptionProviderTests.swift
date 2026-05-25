@@ -14,7 +14,7 @@ final class GroqTranscriptionProviderTests: XCTestCase {
         XCTAssertEqual(client.requests.count, 1)
         XCTAssertEqual(client.requests[0].url.absoluteString, "https://api.groq.com/openai/v1/audio/transcriptions")
         XCTAssertEqual(client.requests[0].headers["Authorization"], "Bearer test-key")
-        XCTAssertTrue(client.requests[0].body.contains(Data("whisper-large-v3-turbo".utf8)))
+        XCTAssertTrue(client.requests[0].body.contains(Data("whisper-large-v3".utf8)))
     }
 
     func testGroqProviderMaps429ToRateLimit() async throws {

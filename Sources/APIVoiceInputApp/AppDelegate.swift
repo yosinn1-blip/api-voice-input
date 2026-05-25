@@ -9,15 +9,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusMenu: StatusMenuController?
     private var hotkeyController: HotkeyController?
     private let overlay = OverlayWindowController()
+    private let transcriptPopup = TranscriptPopupController()
     private let recorder = RecorderController()
     private let youTubePauseController = YouTubePauseController()
     private var isRecording = false
     private var isStartingRecording = false
+    private var conversationMode = false
+    private var conversationModeEnteredAt: Date = .distantPast
+    private var conversationModeExitedAt: Date = .distantPast
+    private var pendingF19Task: Task<Void, Never>?
+    private var f19ReceivedAt: Date = .distantPast
     private var audioLevelTimer: Timer?
     private var youTubeAudioSnapshot: YouTubePauseController.SystemAudioSnapshot?
     private var recordingSessionID: UUID?
     private var maxRecordingLevel: Double = 0
-
+    private var savedFocusApp: NSRunningApplication?
+    private var savedFocusElement: AXUIElement?
 
     func applicationWillTerminate(_ notification: Notification) {
         youTubePauseController.restoreSystemAudioIfNeeded(youTubeAudioSnapshot)
@@ -26,7 +33,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let bundleID = Bundle.main.bundleIdentifier ?? ""
+        if bundleID.isEmpty == false {
+            let runningInstances = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            if runningInstances.count > 1 {
+                DebugLog.write("duplicate instance detected — terminating")
+                NSApp.terminate(nil)
+                return
+            }
+        }
         DebugLog.write("app launched")
+        YouTubePauseController.restorePendingMuteOnLaunchIfNeeded()
         statusMenu = StatusMenuController { [weak self] in
             self?.toggleRecording(source: "menu")
         } openAccessibilitySettings: {
@@ -49,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotkeyController?.registerCommandShiftSpace()
         hotkeyController?.registerF19Bridge()
+        hotkeyController?.registerConversationModeHotKey()
         let fnRegistered = hotkeyController?.registerFnKey() ?? false
         if fnRegistered == false {
             overlay.show(.failed, detail: "Fn検出にはアクセシビリティ権限が必要です")
@@ -162,8 +180,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func isFnTapSource(_ source: String) -> Bool {
+        source == "direct-fn-eventtap" || source == "f19-hotkey"
+    }
+
     private func toggleRecording(source: String) {
-        DebugLog.write("toggle source=\(source) isRecording=\(isRecording) isStarting=\(isStartingRecording)")
+        // f19-hotkey は Karabiner が長押し時にも先送りしてくる（fn-long-press が後続）
+        // 0.15s 待って fn-long-press が来たらキャンセル、来なければ短押しとして処理
+        if source == "f19-hotkey" || source == "direct-fn-eventtap" {
+            // デバウンス中に追加タップが来ても無視（タイマーをリセットしない）
+            if pendingF19Task != nil { return }
+            // フォーカスは Fn タップ時点（デバウンス前）に取得する
+            captureFocusAtRecordingStart()
+            f19ReceivedAt = Date()
+            pendingF19Task = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 450_000_000)
+                guard !Task.isCancelled, let self else { return }
+                self.pendingF19Task = nil
+                self.processToggle(source: source)
+            }
+            return
+        }
+        if source == "fn-long-press" {
+            let gap = Date().timeIntervalSince(f19ReceivedAt)
+            DebugLog.write(String(format: "fn-long-press gap since f19=%.0fms", gap * 1000))
+            pendingF19Task?.cancel()
+            pendingF19Task = nil
+        }
+        processToggle(source: source)
+    }
+
+    private func processToggle(source: String) {
+        DebugLog.write("toggle source=\(source) isRecording=\(isRecording) isStarting=\(isStartingRecording) convMode=\(conversationMode)")
+        // Karabiner遅延保護：会話モードON直後0.6s以内のFnイベントは無視
+        let isFnEvent = source == "fn-long-press" || isFnTapSource(source)
+        if isFnEvent && conversationMode && Date().timeIntervalSince(conversationModeEnteredAt) < 0.6 {
+            DebugLog.write("fn event ignored — conversation mode just entered (karabiner delay)")
+            return
+        }
+        if isFnEvent && !conversationMode && Date().timeIntervalSince(conversationModeExitedAt) < 0.6 {
+            DebugLog.write("fn event ignored — conversation mode just exited (karabiner delay)")
+            return
+        }
+        if conversationMode && isFnEvent {
+            if source == "fn-long-press" {
+                // 長押し：通常モードへ静かに移行。今の録音は処理して overlay は自然に消える
+                conversationMode = false
+                conversationModeExitedAt = Date()
+                statusMenu?.setConversationModeActive(false)
+                overlay.setConversationGlow(false)
+                DebugLog.write("conversation mode OFF → normal (recording continues)")
+            } else {
+                // 短押し：会話モードを終了し、録音中なら通常どおりペースト
+                conversationMode = false
+                conversationModeExitedAt = Date()
+                statusMenu?.setConversationModeActive(false)
+                overlay.setConversationGlow(false)
+                transcriptPopup.dismiss()
+                DebugLog.write("conversation mode OFF → finish with paste source=\(source)")
+                if isRecording {
+                    finishRecording(source: source)
+                } else {
+                    overlay.hide()
+                }
+            }
+            return
+        }
+        // 通常モード：長押しで会話モードON
+        if source == "fn-long-press" {
+            handleConversationModeToggle()
+            return
+        }
+        // 通常モード：短押しで録音トグル
         if isRecording {
             finishRecording(source: source)
         } else if isStartingRecording {
@@ -173,7 +261,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func handleConversationModeToggle() {
+        if conversationMode {
+            conversationMode = false
+            conversationModeExitedAt = Date()
+            statusMenu?.setConversationModeActive(false)
+            overlay.setConversationGlow(false)
+            transcriptPopup.dismiss()
+            DebugLog.write("conversation mode OFF")
+            if isRecording {
+                finishRecording(source: "conversation-mode-cancel")
+            } else {
+                overlay.hide()
+            }
+        } else {
+            conversationMode = true
+            conversationModeEnteredAt = Date()
+            statusMenu?.setConversationModeActive(true)
+            overlay.setConversationGlow(true)
+            overlay.show(.conversationWaiting)
+            DebugLog.write("conversation mode ON")
+            if !isRecording && !isStartingRecording {
+                startRecording(source: "conversation-mode-start")
+            }
+        }
+    }
+
+    private func captureFocusAtRecordingStart() {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication,
+              frontApp.bundleIdentifier != Bundle.main.bundleIdentifier else {
+            savedFocusApp = nil
+            savedFocusElement = nil
+            return
+        }
+        savedFocusApp = frontApp
+        let systemWide = AXUIElementCreateSystemWide()
+        var focusedValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedValue) == .success,
+              let focusedValue else {
+            savedFocusElement = nil
+            return
+        }
+        savedFocusElement = (focusedValue as! AXUIElement)
+    }
+
+    private func restoreFocusIfNeeded() async {
+        guard let app = savedFocusApp else { return }
+        let element = savedFocusElement
+        savedFocusApp = nil
+        savedFocusElement = nil
+        if #available(macOS 14.0, *) {
+            app.activate()
+        } else {
+            app.activate(options: [.activateIgnoringOtherApps])
+        }
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        if let element {
+            AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        }
+        DebugLog.write("restoreFocus app=\(app.localizedName ?? "?") element=\(element != nil ? "ok" : "nil")")
+    }
+
     private func startRecording(source: String) {
+        captureFocusAtRecordingStart()
+        DebugLog.write("startRecording focusApp=\(savedFocusApp?.localizedName ?? "nil") hasElement=\(savedFocusElement != nil)")
         let startTime = Date()
         let sessionID = UUID()
         isStartingRecording = true
@@ -274,12 +425,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DebugLog.write("finishRecording canceled transcription source=\(source)")
             return
         }
+        let currentApp = NSWorkspace.shared.frontmostApplication
+        let focusLost = savedFocusApp != nil
+            && currentApp?.bundleIdentifier != savedFocusApp?.bundleIdentifier
+            && currentApp?.bundleIdentifier != Bundle.main.bundleIdentifier
+        DebugLog.write("finishRecording focusLost=\(focusLost) savedApp=\(savedFocusApp?.localizedName ?? "nil") currentApp=\(currentApp?.localizedName ?? "nil")")
         Task {
-            await process(audioURL: audioURL, overlayVisible: shouldHideImmediately == false, pasteMode: pasteMode, stopSource: source)
+            await process(audioURL: audioURL, overlayVisible: shouldHideImmediately == false, pasteMode: pasteMode, stopSource: source, showPopup: focusLost)
         }
     }
 
-    private func process(audioURL: URL, overlayVisible: Bool, pasteMode: PasteMode, stopSource: String) async {
+    private func process(audioURL: URL, overlayVisible: Bool, pasteMode: PasteMode, stopSource: String, showPopup: Bool) async {
         do {
             let activity = try AudioActivityAnalyzer().analyze(audioFileURL: audioURL)
             DebugLog.write(
@@ -312,11 +468,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             var profile = VoiceProfile.defaultJapanese
             profile.pasteMode = pasteMode
             let transcription = GroqTranscriptionProvider(apiKey: groqKey)
-            let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: FillerRemovalCleanupProvider())
+            let cleanup: any CleanupProvider = FillerRemovalCleanupProvider()
+            DebugLog.write("cleanup provider=rule-based-filler-removal")
+            let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: cleanup)
             DebugLog.write("process transcription begin")
             let result = try await pipeline.run(audioFileURL: audioURL, profile: profile)
             DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")
-            if emptyGuard.shouldSuppressTranscript(result.finalText, activity: activity) {
+            if emptyGuard.shouldSuppressTranscript(result.rawTranscript, activity: activity)
+                || emptyGuard.shouldSuppressTranscript(result.finalText, activity: activity) {
                 DebugLog.write("process canceled common silence hallucination finalChars=\(result.finalText.count)")
                 try? FileManager.default.removeItem(at: audioURL)
                 overlay.hide()
@@ -331,12 +490,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 overlay.show(.failed, detail: "アクセシビリティ権限が必要・文字はクリップボード")
                 return
             }
+            if showPopup {
+                await restoreFocusIfNeeded()
+            }
             try paste.paste(result.finalText, mode: profile.pasteMode)
             DebugLog.write("paste command sent")
             overlay.show(.pasted)
+            if showPopup {
+                transcriptPopup.show(text: result.finalText)
+            } else {
+                transcriptPopup.dismiss()
+            }
             try? FileManager.default.removeItem(at: audioURL)
             try? await Task.sleep(nanoseconds: 900_000_000)
-            overlay.hide()
+            if conversationMode {
+                overlay.show(.conversationWaiting)
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                if conversationMode && !isRecording && !isStartingRecording {
+                    startRecording(source: "conversation-mode-auto")
+                }
+            } else {
+                overlay.hide()
+            }
         } catch {
             DebugLog.write("process failed error=\(error.localizedDescription)")
             overlay.show(.failed, detail: error.localizedDescription)
@@ -365,6 +540,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
 }
+
+private struct GroqFallbackCleanupProvider: CleanupProvider {
+    let id = "groq-llama-fallback"
+    private let groq: GroqCleanupProvider
+    private let fallback = FillerRemovalCleanupProvider()
+
+    init(apiKey: String) {
+        groq = GroqCleanupProvider(apiKey: apiKey)
+    }
+
+    func clean(transcript: String, prompt: String) async throws -> String {
+        do {
+            return try await groq.clean(transcript: transcript, prompt: prompt)
+        } catch {
+            DebugLog.write("groq cleanup failed, fallback to filler-removal error=\(error.localizedDescription)")
+            return try await fallback.clean(transcript: transcript, prompt: prompt)
+        }
+    }
+}
+
 
 struct SystemClipboardClient: ClipboardClient {
     func readString() -> String? {

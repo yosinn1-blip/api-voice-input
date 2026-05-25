@@ -53,8 +53,18 @@ struct YouTubePauseController {
     func restoreSystemAudioIfNeeded(_ snapshot: SystemAudioSnapshot?) {
         guard let snapshot, snapshot.wasMuted == false else { return }
         let result = Self.runAppleScript("set volume without output muted")
+        UserDefaults.standard.removeObject(forKey: Self.pendingMuteKey)
         DebugLog.write("youtube pause restore system-output-muted=false status=\(result.status) output=\(result.output)")
     }
+
+    static func restorePendingMuteOnLaunchIfNeeded() {
+        guard UserDefaults.standard.bool(forKey: pendingMuteKey) else { return }
+        let result = runAppleScript("set volume without output muted")
+        UserDefaults.standard.removeObject(forKey: pendingMuteKey)
+        DebugLog.write("youtube pause launch-restore system-output-muted=false status=\(result.status) output=\(result.output)")
+    }
+
+    private static let pendingMuteKey = "YouTubePauseController.pendingMute"
 
     private static let supportedBrowsers: [BrowserTarget] = [
         BrowserTarget(name: "Google Chrome", bundleIdentifier: "com.google.Chrome", scriptKind: .chromium),
@@ -165,6 +175,9 @@ struct YouTubePauseController {
         let snapshotResult = runAppleScript("return output muted of (get volume settings)")
         let wasMuted = snapshotResult.output.lowercased().contains("true")
         let muteResult = runAppleScript("set volume with output muted")
+        if wasMuted == false {
+            UserDefaults.standard.set(true, forKey: pendingMuteKey)
+        }
         DebugLog.write("youtube pause system-output-muted=true previousMuted=\(wasMuted) status=\(muteResult.status) output=\(muteResult.output)")
         return SystemAudioSnapshot(wasMuted: wasMuted)
     }

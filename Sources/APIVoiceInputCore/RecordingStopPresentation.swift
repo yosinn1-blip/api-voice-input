@@ -8,11 +8,11 @@ public enum RecordingStopPresentation {
     }
 
     public static func shouldHideOverlayImmediately(maxRecordingLevel: Double, stopSource: String) -> Bool {
-        isFnStopSource(stopSource) || shouldHideOverlayImmediately(maxRecordingLevel: maxRecordingLevel)
+        isFnStopSource(stopSource) || isConversationCancel(stopSource) || shouldHideOverlayImmediately(maxRecordingLevel: maxRecordingLevel)
     }
 
     public static func shouldCancelTranscription(stopSource: String) -> Bool {
-        false
+        isConversationCancel(stopSource)
     }
 
     public static func pasteMode(stopSource: String) -> PasteMode {
@@ -26,5 +26,9 @@ public enum RecordingStopPresentation {
 
     private static func isFnStopSource(_ stopSource: String) -> Bool {
         stopSource == "f19-hotkey" || stopSource == "direct-fn-eventtap"
+    }
+
+    private static func isConversationCancel(_ stopSource: String) -> Bool {
+        stopSource == "conversation-mode-cancel"
     }
 }

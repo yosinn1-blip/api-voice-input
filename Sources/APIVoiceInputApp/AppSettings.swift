@@ -4,7 +4,6 @@ struct AppSettings {
     static let bundleIdentifier = "com.yoshiki.APIVoiceInput"
     static let appName = "API音声ソフト"
     static let groqKeyAccount = "groq-api-key"
-    static let geminiKeyAccount = "gemini-api-key"
     static let groqOnboardingDismissedKey = "groq-api-key-onboarding-dismissed"
     static let mediaControlEnabledKey = "recording-media-control-enabled"
 

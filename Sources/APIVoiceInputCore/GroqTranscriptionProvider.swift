@@ -70,7 +70,7 @@ public struct GroqTranscriptionProvider: TranscriptionProvider {
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"model\"\r\n\r\n")
-        append("whisper-large-v3-turbo\r\n")
+        append("whisper-large-v3\r\n")
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"language\"\r\n\r\n")

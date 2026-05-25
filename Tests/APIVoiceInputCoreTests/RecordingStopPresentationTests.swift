@@ -25,6 +25,11 @@ final class RecordingStopPresentationTests: XCTestCase {
         XCTAssertFalse(RecordingStopPresentation.shouldCancelTranscription(stopSource: "enter-stop"))
         XCTAssertEqual(RecordingStopPresentation.pasteMode(stopSource: "enter-stop"), .pasteThenEnter)
     }
+
+    func testConversationCancelHidesOverlayAndCancelsTranscription() {
+        XCTAssertTrue(RecordingStopPresentation.shouldHideOverlayImmediately(maxRecordingLevel: 0.8, stopSource: "conversation-mode-cancel"))
+        XCTAssertTrue(RecordingStopPresentation.shouldCancelTranscription(stopSource: "conversation-mode-cancel"))
+    }
     func testFnStopSkipsShortQuietStartupNoiseBeforeAPITranscription() {
         let startupNoise = AudioActivitySummary(durationSeconds: 0.57, rmsDBFS: -45.1, peakDBFS: -25.5)
 

@@ -11,18 +11,19 @@ final class OverlayWindowController {
         case pasted = "貼り付けました"
         case failed = "失敗しました"
         case canceled = "音声なし"
+        case conversationWaiting = "待機中"
     }
 
     private let window: NSWindow
     private let waveformView = WaveformView()
     private let progressView = ProcessingGaugeView()
     private let style = RecordingOverlayVisualStyle.typelessInspired
+    private let contentView = NSView()
 
     init() {
         waveformView.translatesAutoresizingMaskIntoConstraints = false
         progressView.translatesAutoresizingMaskIntoConstraints = false
 
-        let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         contentView.wantsLayer = true
         contentView.layer?.backgroundColor = NSColor(calibratedWhite: 0.035, alpha: 0.90).cgColor
@@ -72,6 +73,26 @@ final class OverlayWindowController {
         window.orderOut(nil)
     }
 
+    func setConversationGlow(_ active: Bool) {
+        let layer = contentView.layer
+        if active {
+            layer?.borderWidth = 2.5
+            layer?.borderColor = NSColor(calibratedRed: 0.2, green: 0.75, blue: 1.0, alpha: 1.0).cgColor
+            let pulse = CABasicAnimation(keyPath: "borderColor")
+            pulse.fromValue = NSColor(calibratedRed: 0.2, green: 0.75, blue: 1.0, alpha: 1.0).cgColor
+            pulse.toValue = NSColor(calibratedRed: 0.2, green: 0.75, blue: 1.0, alpha: 0.25).cgColor
+            pulse.duration = 1.2
+            pulse.autoreverses = true
+            pulse.repeatCount = .infinity
+            pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer?.add(pulse, forKey: "conversationGlow")
+        } else {
+            layer?.removeAnimation(forKey: "conversationGlow")
+            layer?.borderWidth = 1.1
+            layer?.borderColor = NSColor.white.withAlphaComponent(0.20).cgColor
+        }
+    }
+
     func updateRecordingLevel(_ level: Double) {
         waveformView.updateAudioLevel(level)
     }
@@ -98,6 +119,11 @@ final class OverlayWindowController {
             progressView.isHidden = false
             waveformView.stopAnimating()
             progressView.showIdle()
+        case .conversationWaiting:
+            waveformView.isHidden = false
+            progressView.isHidden = true
+            waveformView.startAnimating()
+            progressView.stopAnimating()
         }
     }
 
@@ -253,11 +279,14 @@ private final class ProcessingGaugeView: NSView {
 
         let fillWidth = bounds.width * min(max(phase, 0), 1)
         let fillRect = NSRect(x: bounds.minX, y: bounds.minY, width: fillWidth, height: bounds.height)
+        let alpha: CGFloat = phase >= 0.94
+            ? style.fillAlpha * (0.55 + 0.45 * CGFloat((sin(Double(pulse)) + 1) * 0.5))
+            : style.fillAlpha
         NSColor(
             calibratedRed: style.fillRed,
             green: style.fillGreen,
             blue: style.fillBlue,
-            alpha: style.fillAlpha
+            alpha: alpha
         ).setFill()
         NSBezierPath(rect: fillRect).fill()
     }

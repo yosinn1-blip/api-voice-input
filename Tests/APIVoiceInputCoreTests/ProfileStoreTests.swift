@@ -5,7 +5,7 @@ final class ProfileStoreTests: XCTestCase {
     func testDefaultProfileUsesPasteThenEnter() {
         let profile = VoiceProfile.defaultJapanese
         XCTAssertEqual(profile.sttLanguageHint, "ja")
-        XCTAssertEqual(profile.transcriptionProviderID, "groq-whisper-large-v3-turbo")
+        XCTAssertEqual(profile.transcriptionProviderID, "groq-whisper-large-v3")
         XCTAssertEqual(profile.cleanupProviderID, "rule-based-filler-removal")
         XCTAssertEqual(profile.pasteMode, .pasteThenEnter)
     }
@@ -27,8 +27,8 @@ final class ProfileStoreTests: XCTestCase {
         let english = VoiceProfile(
             displayName: "English email",
             sttLanguageHint: "en",
-            transcriptionProviderID: "groq-whisper-large-v3-turbo",
-            cleanupProviderID: "gemini-free",
+            transcriptionProviderID: "groq-whisper-large-v3",
+            cleanupProviderID: "groq-llama-instant",
             cleanupPrompt: "Rewrite as a concise, polite English email without changing the meaning.",
             pasteMode: .pasteThenEnter
         )

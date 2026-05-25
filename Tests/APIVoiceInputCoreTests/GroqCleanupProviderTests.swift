@@ -1,30 +1,34 @@
 import XCTest
 @testable import APIVoiceInputCore
 
-final class GeminiCleanupProviderTests: XCTestCase {
-    func testGeminiProviderParsesCleanupResponse() async throws {
-        let responseJSON = #"{"candidates":[{"content":{"parts":[{"text":"今日はテストです。"}]}}]}"#
+final class GroqCleanupProviderTests: XCTestCase {
+    func testGroqProviderParsesCleanupResponse() async throws {
+        let responseJSON = #"{"choices":[{"message":{"role":"assistant","content":"今日はテストです。"}}]}"#
         let client = MockHTTPClient(response: HTTPResponse(statusCode: 200, data: Data(responseJSON.utf8)))
-        let provider = GeminiCleanupProvider(apiKey: "gemini-key", httpClient: client)
+        let provider = GroqCleanupProvider(apiKey: "groq-key", httpClient: client)
 
         let text = try await provider.clean(transcript: "えー今日はテストです", prompt: "自然に整えて")
 
         XCTAssertEqual(text, "今日はテストです。")
         XCTAssertEqual(client.requests.count, 1)
-        XCTAssertTrue(client.requests[0].url.absoluteString.contains("generativelanguage.googleapis.com"))
-        XCTAssertTrue(client.requests[0].body.contains(Data("自然に整えて".utf8)))
-        XCTAssertTrue(client.requests[0].body.contains(Data("えー今日はテストです".utf8)))
+        XCTAssertEqual(client.requests[0].url.absoluteString, "https://api.groq.com/openai/v1/chat/completions")
+        XCTAssertEqual(client.requests[0].headers["Authorization"], "Bearer groq-key")
+        let json = try JSONSerialization.jsonObject(with: client.requests[0].body) as? [String: Any]
+        XCTAssertEqual(json?["model"] as? String, "llama-3.3-70b-versatile")
+        let messages = json?["messages"] as? [[String: String]]
+        XCTAssertEqual(messages?[0]["content"], "自然に整えて")
+        XCTAssertEqual(messages?[1]["content"], "<transcription>えー今日はテストです</transcription>")
     }
 
-    func testGeminiProviderMaps429ToRateLimit() async throws {
+    func testGroqProviderMaps429ToRateLimit() async throws {
         let client = MockHTTPClient(response: HTTPResponse(statusCode: 429, data: Data()))
-        let provider = GeminiCleanupProvider(apiKey: "gemini-key", httpClient: client)
+        let provider = GroqCleanupProvider(apiKey: "groq-key", httpClient: client)
 
         do {
             _ = try await provider.clean(transcript: "hello", prompt: "clean")
             XCTFail("Expected rate limit")
         } catch VoiceInputError.providerRateLimited(let providerID) {
-            XCTAssertEqual(providerID, "gemini")
+            XCTAssertEqual(providerID, "groq-cleanup")
         }
     }
 }

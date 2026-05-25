@@ -46,7 +46,8 @@ public enum RecordingWaveformShape {
         return (0..<barCount).map { index in
             let distanceFromCenter = abs(Double(index) - center) / max(center, 1)
             let centerWeight = 0.22 + pow(1 - distanceFromCenter, 1.70) * 0.78
-            let idleBreath = 0.018 * (sin(phase * 1.35 + Double(index) * 0.92) + 1) / 2
+            let idleAmplitude = 0.018
+            let idleBreath = idleAmplitude * (sin(phase * 1.35 + Double(index) * 0.92) + 1) / 2
             let voiceMotion = 0.92 + 0.15 * sin(phase + Double(index) * 0.72)
             let factor = 0.12 + idleBreath + level * centerWeight * voiceMotion * 1.08
             return min(max(factor, 0.10), 0.96)

@@ -5,6 +5,8 @@ import Foundation
 final class HotkeyController {
     private var hotKeyRef: EventHotKeyRef?
     private var f19HotKeyRef: EventHotKeyRef?
+    private var conversationHotKeyRef: EventHotKeyRef?
+    private var conversationAltHotKeyRef: EventHotKeyRef?
     private var enterStopHotKeyRef: EventHotKeyRef?
     private var handler: EventHandlerRef?
     private var fnEventTap: CFMachPort?
@@ -12,6 +14,8 @@ final class HotkeyController {
     private var fnIsDown = false
     private var isRecording = false
     private var lastFnPress = Date.distantPast
+    private var fnPressStart = Date.distantPast
+    private var f19PressStart = Date.distantPast
     private let onPressed: @Sendable (_ source: String) -> Void
 
     init(onPressed: @escaping @Sendable (_ source: String) -> Void) {
@@ -23,6 +27,16 @@ final class HotkeyController {
         let hotKeyID = EventHotKeyID(signature: OSType(0x4156494E), id: 1)
         let status = RegisterEventHotKey(UInt32(kVK_Space), UInt32(cmdKey | shiftKey), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
         DebugLog.write("register Command+Shift+Space status=\(status)")
+    }
+
+    func registerConversationModeHotKey() {
+        installCarbonHandlerIfNeeded()
+        let hotKeyID = EventHotKeyID(signature: OSType(0x4156494E), id: 4)
+        // F18 = Fn long press via Karabiner; also Cmd+Option+C as fallback
+        let statusF18 = RegisterEventHotKey(UInt32(kVK_F18), 0, hotKeyID, GetApplicationEventTarget(), 0, &conversationHotKeyRef)
+        let altHotKeyID = EventHotKeyID(signature: OSType(0x4156494E), id: 5)
+        let statusAlt = RegisterEventHotKey(UInt32(kVK_ANSI_C), UInt32(cmdKey | optionKey), altHotKeyID, GetApplicationEventTarget(), 0, &conversationAltHotKeyRef)
+        DebugLog.write("register conversation mode F18=\(statusF18) Cmd+Option+C=\(statusAlt)")
     }
 
     func registerF19Bridge() {
@@ -68,36 +82,55 @@ final class HotkeyController {
         return true
     }
 
-    fileprivate func handleCarbonHotKey(id: UInt32) {
+    fileprivate func handleCarbonHotKeyPressed(id: UInt32) {
         switch id {
+        case 2:
+            f19PressStart = Date()
+            DebugLog.write("f19 key-down")
         case 3:
             onPressed("enter-stop")
-        case 2:
-            onPressed("f19-hotkey")
+        case 4, 5:
+            onPressed("fn-long-press")
         default:
             onPressed("carbon-hotkey")
         }
+    }
+
+    fileprivate func handleCarbonHotKeyReleased(id: UInt32) {
+        guard id == 2 else { return }
+        let duration = Date().timeIntervalSince(f19PressStart)
+        let now = Date()
+        guard now.timeIntervalSince(lastFnPress) > 0.25 else { return }
+        lastFnPress = now
+        DebugLog.write("f19 key-up duration=\(String(format: "%.3f", duration))")
+        onPressed("f19-hotkey")
     }
 
     fileprivate func handleFlagsChanged(_ event: CGEvent) {
         let isFnDown = event.flags.contains(.maskSecondaryFn)
         defer { fnIsDown = isFnDown }
 
-        guard isFnDown, fnIsDown == false else {
-            return
+        if isFnDown && !fnIsDown {
+            fnPressStart = Date()
+        } else if !isFnDown && fnIsDown {
+            let duration = Date().timeIntervalSince(fnPressStart)
+            let now = Date()
+            guard now.timeIntervalSince(lastFnPress) > 0.25 else { return }
+            lastFnPress = now
+            if duration >= 0.4 {
+                onPressed("fn-long-press")
+            } else {
+                onPressed("direct-fn-eventtap")
+            }
         }
-
-        let now = Date()
-        guard now.timeIntervalSince(lastFnPress) > 0.25 else {
-            return
-        }
-        lastFnPress = now
-        onPressed("direct-fn-eventtap")
     }
 
     private func installCarbonHandlerIfNeeded() {
         guard handler == nil else { return }
-        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        var eventTypes = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
+        ]
         let selfPointer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
         InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
             guard let event, let userData else { return noErr }
@@ -112,13 +145,18 @@ final class HotkeyController {
                 nil,
                 &hotKeyID
             )
-            if status == noErr {
-                controller.handleCarbonHotKey(id: hotKeyID.id)
-            } else {
+            guard status == noErr else {
                 controller.onPressed("carbon-hotkey")
+                return noErr
+            }
+            let eventKind = GetEventKind(event)
+            if eventKind == UInt32(kEventHotKeyReleased) {
+                controller.handleCarbonHotKeyReleased(id: hotKeyID.id)
+            } else {
+                controller.handleCarbonHotKeyPressed(id: hotKeyID.id)
             }
             return noErr
-        }, 1, &eventType, selfPointer, &handler)
+        }, 2, &eventTypes, selfPointer, &handler)
     }
 
     private func registerEnterStopHotKey() {
@@ -142,6 +180,12 @@ final class HotkeyController {
         }
         if let f19HotKeyRef {
             UnregisterEventHotKey(f19HotKeyRef)
+        }
+        if let conversationHotKeyRef {
+            UnregisterEventHotKey(conversationHotKeyRef)
+        }
+        if let conversationAltHotKeyRef {
+            UnregisterEventHotKey(conversationAltHotKeyRef)
         }
         if let enterStopHotKeyRef {
             UnregisterEventHotKey(enterStopHotKeyRef)
