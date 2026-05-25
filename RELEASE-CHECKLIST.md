@@ -20,9 +20,9 @@ Run:
 Expected artifacts:
 
 ```text
-dist/API音声ソフト-<version>.zip
-dist/API音声ソフト-<version>.zip.sha256
-dist/API音声ソフト-<version>-release-notes.txt
+dist/api-voice-input-<version>.zip
+dist/api-voice-input-<version>.zip.sha256
+dist/api-voice-input-<version>-release-notes.txt
 ```
 
 ## Manual smoke test
@@ -37,6 +37,9 @@ dist/API音声ソフト-<version>-release-notes.txt
 
 Only after the ZIP is uploaded to a stable public URL:
 
+- [ ] Verify the GitHub Release download link opens
+- [ ] Update `docs/index.html` download URL if the version or filename changed
+- [ ] Verify https://api-voice-input.vercel.app/ returns 200
 - [ ] Update `/Users/yoshiki/dev/zenn-content/articles/ai-voice-input-self-built.md`
 - [ ] Add app link and setup note
 - [ ] Verify public link opens
