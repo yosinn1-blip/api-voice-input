@@ -27,6 +27,26 @@ dist/api-voice-input-0.1.3-4.zip.sha256
 dist/api-voice-input-0.1.3-4-release-notes.txt
 ```
 
+## Update public links
+
+After uploading the ZIP, update release links from `Info.plist`:
+
+```bash
+bash scripts/update-release-links.sh
+```
+
+If the GitHub tag is not `v<CFBundleShortVersionString>`, pass it explicitly:
+
+```bash
+RELEASE_TAG=v0.1.3 bash scripts/update-release-links.sh
+```
+
+This updates:
+
+- `README.md` direct ZIP / SHA256 / release notes links
+- `docs/index.html` download button URL
+- `docs/index.html` footer version
+
 ## Manual smoke test
 
 - [ ] Fresh install launches
@@ -42,8 +62,7 @@ Only after the ZIP is uploaded to a stable public URL:
 - [ ] Verify the GitHub Release download link opens
 - [ ] Verify the `.zip.sha256` link opens
 - [ ] Verify the release notes link opens
-- [ ] Update `README.md` direct download links if the version or filename changed
-- [ ] Update `docs/index.html` download URL if the version or filename changed
+- [ ] Run `bash scripts/update-release-links.sh` and commit any link changes
 - [ ] Verify https://api-voice-input.vercel.app/ returns 200
 - [ ] Update `/Users/yoshiki/dev/zenn-content/articles/ai-voice-input-self-built.md`
 - [ ] Add app link and setup note
