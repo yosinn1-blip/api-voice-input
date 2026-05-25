@@ -25,9 +25,9 @@ ChatGPT / Claude / Codex などの入力欄に、`Fn` と `Enter` だけで素�
 最新版はGitHub Releasesからダウンロードできます。
 
 - 最新Release: https://github.com/yosinn1-blip/api-voice-input/releases/latest
-- v0.1.4 ZIP: https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.4/api-voice-input-0.1.4-5.zip
-- SHA256: https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.4/api-voice-input-0.1.4-5.zip.sha256
-- Release notes: https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.4/api-voice-input-0.1.4-5-release-notes.txt
+- v0.1.5 ZIP: https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.5/api-voice-input-0.1.5-6.zip
+- SHA256: https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.5/api-voice-input-0.1.5-6.zip.sha256
+- Release notes: https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.5/api-voice-input-0.1.5-6-release-notes.txt
 
 このアプリはメニューバー常駐型です。起動しても通常のウィンドウは開かず、画面上部のメニューバーに `🎙` が表示されます。
 
