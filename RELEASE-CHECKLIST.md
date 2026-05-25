@@ -4,6 +4,7 @@
 
 - [ ] `swift test` passes
 - [ ] `./scripts/dev-cycle.sh` passes
+- [ ] `bash scripts/verify-release-scripts.sh` passes
 - [ ] No API keys, auth tokens, or personal secrets are committed
 - [ ] `README.md` setup steps are current
 - [ ] `PRIVACY.md` accurately describes network/data behavior
