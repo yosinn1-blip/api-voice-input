@@ -1,0 +1,28 @@
+name: Manual Release Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-check:
+    name: Swift and release script checks
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show tool versions
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Verify release scripts
+        run: bash scripts/verify-release-scripts.sh
+
+      - name: Run Swift tests
+        run: swift test
