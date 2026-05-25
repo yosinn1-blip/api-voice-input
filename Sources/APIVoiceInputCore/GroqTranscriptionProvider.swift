@@ -31,7 +31,7 @@ public struct URLSessionHTTPClient: HTTPClient {
 }
 
 public struct GroqTranscriptionProvider: TranscriptionProvider {
-    public let id = "groq-whisper-large-v3-turbo"
+    public let id = "groq-whisper-large-v3"
     private let apiKey: String
     private let httpClient: any HTTPClient
 

@@ -2,6 +2,12 @@ import XCTest
 @testable import APIVoiceInputCore
 
 final class GroqTranscriptionProviderTests: XCTestCase {
+    func testProviderIDMatchesConfiguredDefaultProfile() {
+        let provider = GroqTranscriptionProvider(apiKey: "groq-key")
+        XCTAssertEqual(provider.id, "groq-whisper-large-v3")
+        XCTAssertEqual(provider.id, VoiceProfile.defaultJapanese.transcriptionProviderID)
+    }
+
     func testGroqProviderParsesTextResponse() async throws {
         let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("groq-test.wav")
         try Data("audio".utf8).write(to: audioURL)
