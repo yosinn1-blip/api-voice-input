@@ -17,7 +17,7 @@ printf 'root=%s\n' "$ROOT"
 printf 'version=%s build=%s\n' "$VERSION" "$BUILD"
 
 printf '== shell syntax ==\n'
-/bin/bash -n scripts/build-app.sh scripts/install-app.sh scripts/diagnose-last-run.sh "$0"
+/bin/bash -n scripts/build-app.sh scripts/install-app.sh scripts/diagnose-last-run.sh scripts/update-release-links.sh scripts/notarize-release.sh "$0"
 
 printf '== swift test ==\n'
 swift test
