@@ -119,7 +119,7 @@ bash scripts/verify-release-scripts.sh
 ./scripts/package-release.sh
 ```
 
-release ZIPは `dist/` に作成されます。次回Releaseの公開リンク更新は `bash scripts/update-release-links.sh`、notarization準備は [`docs/notarization.md`](./docs/notarization.md) を参照してください。
+release ZIPは `dist/` に作成されます。次回Releaseの公開リンク更新は `bash scripts/update-release-links.sh`、ホームページdeployは [`docs/deployment.md`](./docs/deployment.md)、notarization準備は [`docs/notarization.md`](./docs/notarization.md) を参照してください。
 
 ## プライバシー
 
