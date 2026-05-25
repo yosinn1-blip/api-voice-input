@@ -56,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.showGroqAPIKeySetupDialog()
         } showGroqAPIKeyStatus: { [weak self] in
             self?.showGroqAPIKeyStatusDialog()
+        } showDiagnostics: { [weak self] in
+            self?.showDiagnosticsDialog()
         } getMediaControlEnabled: {
             UserDefaults.standard.object(forKey: AppSettings.mediaControlEnabledKey) as? Bool
                 ?? RecordingBehaviorSettings.defaultMediaControlEnabled
@@ -150,6 +152,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             showMessage(title: "Groq APIキーは未設定です", message: "メニューの「無料のGroq APIキーを取得」からキーを作成し、「Groq APIキーを設定…」で貼り付けてください。")
         }
+    }
+
+    private func showDiagnosticsDialog() {
+        let status = DiagnosticStatus(snapshot: makeDiagnosticSnapshot())
+        let alert = NSAlert()
+        alert.messageText = status.title
+        alert.informativeText = status.message
+        alert.addButton(withTitle: "ログをFinderで表示")
+        alert.addButton(withTitle: "セットアップを開く")
+        alert.addButton(withTitle: "OK")
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        switch response {
+        case .alertFirstButtonReturn:
+            revealDebugLog()
+        case .alertSecondButtonReturn:
+            NSWorkspace.shared.open(GroqAPIKeySetup.setupGuideURL)
+        default:
+            break
+        }
+    }
+
+    private func makeDiagnosticSnapshot() -> DiagnosticSnapshot {
+        let logPath = DebugLog.fileURL.path
+        return DiagnosticSnapshot(
+            hasGroqAPIKey: APIKeyStore.hasGroqAPIKey(),
+            isAccessibilityTrusted: AXIsProcessTrusted(),
+            microphonePermission: currentMicrophonePermission(),
+            debugLogPath: logPath,
+            debugLogExists: FileManager.default.fileExists(atPath: logPath)
+        )
+    }
+
+    private func currentMicrophonePermission() -> DiagnosticMicrophonePermission {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            return .authorized
+        case .notDetermined:
+            return .notDetermined
+        case .denied:
+            return .denied
+        case .restricted:
+            return .restricted
+        @unknown default:
+            return .unknown
+        }
+    }
+
+    private func revealDebugLog() {
+        let fileManager = FileManager.default
+        let logURL = DebugLog.fileURL
+        if fileManager.fileExists(atPath: logURL.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([logURL])
+            return
+        }
+
+        try? fileManager.createDirectory(
+            at: AppSettings.applicationSupportDirectory,
+            withIntermediateDirectories: true
+        )
+        NSWorkspace.shared.open(AppSettings.applicationSupportDirectory)
     }
 
     private func showMessage(title: String, message: String) {

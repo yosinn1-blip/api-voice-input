@@ -10,6 +10,7 @@ final class StatusMenuController: NSObject {
     private let openSetupGuide: () -> Void
     private let setGroqAPIKey: () -> Void
     private let showGroqAPIKeyStatus: () -> Void
+    private let showDiagnostics: () -> Void
     private let getMediaControlEnabled: () -> Bool
     private let setMediaControlEnabled: (Bool) -> Void
     private let mediaControlItem: NSMenuItem
@@ -21,6 +22,7 @@ final class StatusMenuController: NSObject {
         openSetupGuide: @escaping () -> Void,
         setGroqAPIKey: @escaping () -> Void,
         showGroqAPIKeyStatus: @escaping () -> Void,
+        showDiagnostics: @escaping () -> Void,
         getMediaControlEnabled: @escaping () -> Bool,
         setMediaControlEnabled: @escaping (Bool) -> Void
     ) {
@@ -30,6 +32,7 @@ final class StatusMenuController: NSObject {
         self.openSetupGuide = openSetupGuide
         self.setGroqAPIKey = setGroqAPIKey
         self.showGroqAPIKeyStatus = showGroqAPIKeyStatus
+        self.showDiagnostics = showDiagnostics
         self.getMediaControlEnabled = getMediaControlEnabled
         self.setMediaControlEnabled = setMediaControlEnabled
         self.mediaControlItem = NSMenuItem(title: "録音開始時にYouTubeを一時停止", action: #selector(toggleMediaControl), keyEquivalent: "")
@@ -54,6 +57,9 @@ final class StatusMenuController: NSObject {
         let groqKeyStatus = NSMenuItem(title: "Groq APIキー設定状況", action: #selector(showGroqKeyStatus), keyEquivalent: "")
         groqKeyStatus.target = self
         menu.addItem(groqKeyStatus)
+        let diagnostics = NSMenuItem(title: "診断を表示", action: #selector(showDiagnosticStatus), keyEquivalent: "")
+        diagnostics.target = self
+        menu.addItem(diagnostics)
         menu.addItem(NSMenuItem.separator())
         let accessibility = NSMenuItem(title: "アクセシビリティ設定を開く", action: #selector(openAccessibility), keyEquivalent: "")
         accessibility.target = self
@@ -85,6 +91,10 @@ final class StatusMenuController: NSObject {
 
     @objc private func showGroqKeyStatus() {
         showGroqAPIKeyStatus()
+    }
+
+    @objc private func showDiagnosticStatus() {
+        showDiagnostics()
     }
 
     @objc private func toggleMediaControl() {
