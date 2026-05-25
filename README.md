@@ -108,17 +108,18 @@ Chromeで動画を確実に一時停止したい場合は、Chromeのメニュ�
 
 このMVPは直接配布用です。App Store版やnotarize済み版ではありません。
 
-そのため、初回起動時にmacOSのGatekeeper警告が出る場合があります。公開配布を強める場合は、Apple Developer IDでのnotarizationが次の作業です。
+そのため、初回起動時にmacOSのGatekeeper警告が出る場合があります。公開配布を強める場合は、Apple Developer IDでのnotarizationが次の作業です。手順は [`docs/notarization.md`](./docs/notarization.md) を参照してください。
 
 ## 開発者向け
 
 ```bash
 swift test
 ./scripts/dev-cycle.sh
+bash scripts/verify-release-scripts.sh
 ./scripts/package-release.sh
 ```
 
-release ZIPは `dist/` に作成されます。
+release ZIPは `dist/` に作成されます。次回Releaseの公開リンク更新は `bash scripts/update-release-links.sh`、notarization準備は [`docs/notarization.md`](./docs/notarization.md) を参照してください。
 
 ## プライバシー
 
