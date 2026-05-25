@@ -1,13 +1,15 @@
-# API音声ソフト
+# AI Voice Input
 
-AIに話しかけるための、Mac向け高速音声入力アプリです。
+AIチャットに話しかけるための、Mac向け高速音声入力アプリです。
+
+旧称・アプリ本体名は `API音声ソフト` です。
 
 ChatGPT / Claude / Codex などの入力欄に、`Fn` と `Enter` だけで素早く音声入力します。文章を過度に整えるより、話した意図を速く正確にAIへ渡すことを重視しています。
 
 ## 特徴
 
 - AI入力向けのシンプルな音声入力
-- Groq Whisper `whisper-large-v3-turbo` による高速な文字起こし
+- Groq Whisper `whisper-large-v3` による高速な文字起こし
 - アプリ独自アカウント不要
 - ユーザー自身のGroq APIキーを使用
 - APIキーはmacOS Keychainに保存
@@ -18,7 +20,7 @@ ChatGPT / Claude / Codex などの入力欄に、`Fn` と `Enter` だけで素�
 
 ## ダウンロード
 
-使い方ページ: https://yosinn1-blip.github.io/api-voice-input/
+使い方ページ: https://api-voice-input.vercel.app/
 
 最新版はGitHub Releasesからダウンロードできます。
 
@@ -60,7 +62,7 @@ APIキーはMacのKeychainに保存されます。
 
 ## Groq無料API枠の目安
 
-このアプリは `whisper-large-v3-turbo` を使います。Groq公式のRate Limitsでは、無料枠の目安として次の制限が案内されています。
+このアプリは `whisper-large-v3` を使います。Groq公式のRate Limitsでは、無料枠の目安として次の制限が案内されています。
 
 - 1分あたり最大20回
 - 1日あたり最大2,000回

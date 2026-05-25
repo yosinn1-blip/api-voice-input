@@ -3,8 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>API音声ソフト | Mac向けAI音声入力</title>
-  <meta name="description" content="API音声ソフトは、Fnで録音してAIチャットに素早く貼り付けるMac向けメニューバー音声入力アプリです。Groq Whisperを使います。">
+  <title>AI Voice Input | AIチャット向けMac音声入力</title>
+  <meta name="description" content="AI Voice Inputは、ChatGPT・Claude・CodexなどのAIチャットへFnキーで素早く音声入力できるMac向けメニューバーアプリです。Groq Whisperを使います。">
+  <link rel="canonical" href="https://api-voice-input.vercel.app/">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "AI Voice Input",
+    "alternateName": ["API音声ソフト", "AIチャット向けMac音声入力"],
+    "url": "https://api-voice-input.vercel.app/"
+  }
+  </script>
   <style>
     :root {
       color-scheme: light dark;
@@ -67,9 +77,9 @@
 <body>
   <main>
     <section class="hero">
-      <div class="eyebrow">Mac menu bar voice input for AI</div>
-      <h1>AIに話しかけるための<br>小さな音声入力アプリ</h1>
-      <p class="lead">API音声ソフトは、<code>Fn</code>で録音して、ChatGPT / Claude / Codex などの入力欄へ素早く貼り付けるMac向けメニューバーアプリです。画面上の×/チェックをクリックせず、キー操作だけで流れます。</p>
+      <div class="eyebrow">AI Voice Input for Mac</div>
+      <h1>AIチャットに話しかけるための<br>Mac音声入力アプリ</h1>
+      <p class="lead">AI Voice Inputは、<code>Fn</code>で録音して、ChatGPT / Claude / Codex などのAIチャット入力欄へ素早く貼り付けるMac向けメニューバーアプリです。画面上の×/チェックをクリックせず、キー操作だけで流れます。</p>
       <div class="actions">
         <a class="button primary" href="https://github.com/yosinn1-blip/api-voice-input/releases/download/v0.1.3/api-voice-input-0.1.3-4.zip">最新版をダウンロード</a>
         <a class="button" href="https://github.com/yosinn1-blip/api-voice-input">GitHubを見る</a>
@@ -81,7 +91,7 @@
     </section>
 
     <section class="grid">
-      <div class="card"><h3>速い</h3><p>Groq Whisper <code>whisper-large-v3-turbo</code> を使い、AIへの入力を待たせない体験を重視しています。</p></div>
+      <div class="card"><h3>速い</h3><p>Groq Whisper <code>whisper-large-v3</code> を使い、AIへの入力を待たせない体験を重視しています。</p></div>
       <div class="card"><h3>キーだけ</h3><p>大きな編集画面やクリック用ボタンはありません。<code>Fn → Fn</code> は貼り付けのみ、<code>Fn → Enter</code> は送信まで進みます。</p></div>
       <div class="card"><h3>自分のAPIキー</h3><p>アプリ独自アカウントは不要です。ユーザー自身のGroq APIキーをmacOS Keychainに保存します。</p></div>
     </section>
@@ -103,9 +113,11 @@
 
     <section class="card">
       <h2>Groq無料API枠の目安</h2>
-      <p>このアプリは <code>whisper-large-v3-turbo</code> を使います。Groq公式のRate Limitsでは、無料枠の目安として <code>1日2,000回</code>、音声は <code>1日28,800秒</code>、つまり約8時間分が案内されています。</p>
+      <p>このアプリは <code>whisper-large-v3</code> を使います。Groq公式のRate Limitsでは、無料枠の目安として <code>1日2,000回</code>、音声は <code>1日28,800秒</code>、つまり約8時間分が案内されています。</p>
       <p><code>Fn → 話す → Fn</code> または <code>Fn → 話す → Enter</code> の1回が、基本的にAPIリクエスト1回です。平均15秒なら1日約1,900回分、平均30秒なら約960回分が目安です。</p>
-      <p>日常的なAIチャット入力ならかなり余裕があります。ただし、会議文字起こしのように長時間連続で使う場合は上限に近づきやすいです。最新の正確な値は <a href="https://console.groq.com/docs/rate-limits">Groq公式Rate Limits</a> を確認してください。</p>
+      <p>GroqのFree tierは、クレジットカードなどの支払い方法を登録しなくてもAPIキーを作成して使えます。無料枠のまま支払い情報を登録していなければ、上限を超えても自動で課金されるのではなく、利用制限に当たります。</p>
+      <p>より高い上限が必要な場合だけ、Developer tierへのアップグレードと支払い方法の登録が必要です。</p>
+      <p>日常的なAIチャット入力ならかなり余裕があります。ただし、会議文字起こしのように長時間連続で使う場合は上限に近づきやすいです。最新の正確な値は <a href="https://console.groq.com/docs/rate-limits">Groq公式Rate Limits</a> と <a href="https://console.groq.com/docs/billing-faqs">Groq公式Billing FAQs</a> を確認してください。</p>
     </section>
 
     <section class="card">
@@ -116,7 +128,7 @@
     </section>
 
     <footer>
-      <p>© Yoshiki. API音声ソフト v0.1.3</p>
+      <p>© Yoshiki. AI Voice Input v0.1.3</p>
     </footer>
   </main>
 </body>
