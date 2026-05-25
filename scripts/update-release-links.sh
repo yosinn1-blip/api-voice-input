@@ -89,8 +89,8 @@ if '.subactions {' not in docs_updated:
     css_marker = '    .button.primary { background: var(--accent); color: var(--accentText); border-color: transparent; }\n'
     css_addition = (
         css_marker
-        '    .subactions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 14px; color: var(--muted); }\n'
-        '    .subactions a { color: inherit; text-underline-offset: 3px; }\n'
+        + '    .subactions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 14px; color: var(--muted); }\n'
+        + '    .subactions a { color: inherit; text-underline-offset: 3px; }\n'
     )
     if css_marker not in docs_updated:
         print("ERROR: docs/index.html CSS insertion point was not found", file=sys.stderr)
