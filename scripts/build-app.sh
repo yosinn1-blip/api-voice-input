@@ -34,6 +34,25 @@ if [[ -z "$SIGN_IDENTITY" ]]; then
   fi
 fi
 
-/usr/bin/codesign --force --timestamp=none --sign "$SIGN_IDENTITY" "$APP_DIR"
+TIMESTAMP_MODE="${CODESIGN_TIMESTAMP:-auto}"
+case "$TIMESTAMP_MODE" in
+  auto|on|off) ;;
+  *)
+    echo "Invalid CODESIGN_TIMESTAMP: $TIMESTAMP_MODE" >&2
+    exit 1
+    ;;
+esac
+
+TIMESTAMP_ARGS=(--timestamp=none)
+if [[ "$TIMESTAMP_MODE" == "on" ]]; then
+  TIMESTAMP_ARGS=(--timestamp)
+elif [[ "$TIMESTAMP_MODE" == "auto" ]]; then
+  if [[ "$SIGN_IDENTITY" == "Developer ID Application:"* ]]; then
+    TIMESTAMP_ARGS=(--timestamp)
+  fi
+fi
+
+/usr/bin/codesign --force "${TIMESTAMP_ARGS[@]}" --sign "$SIGN_IDENTITY" "$APP_DIR"
 echo "codesigned with: $SIGN_IDENTITY" >&2
+echo "timestamp mode: ${TIMESTAMP_ARGS[*]}" >&2
 echo "$APP_DIR"
