@@ -67,7 +67,7 @@ Notes:
 - Groq APIキーはmacOS Keychainに保存されます。
 - 録音音声は文字起こしのためGroq APIへ送信されます。
 - YouTube一時停止オプションは初期状態ではオフです。
-- このZIPはnotarize済みではありません。必要に応じて右クリック→開くを使ってください。
+- 配布用ZIPはDeveloper ID署名対象です。notarize後はGatekeeperで通常起動しやすくなります。
 EON
 
 printf 'zip=%s\n' "$ZIP_PATH"

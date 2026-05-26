@@ -52,7 +52,13 @@ elif [[ "$TIMESTAMP_MODE" == "auto" ]]; then
   fi
 fi
 
-/usr/bin/codesign --force "${TIMESTAMP_ARGS[@]}" --sign "$SIGN_IDENTITY" "$APP_DIR"
+OPTION_ARGS=()
+if [[ "$SIGN_IDENTITY" == "Developer ID Application:"* ]]; then
+  OPTION_ARGS=(--options runtime)
+fi
+
+/usr/bin/codesign --force "${TIMESTAMP_ARGS[@]}" "${OPTION_ARGS[@]}" --sign "$SIGN_IDENTITY" "$APP_DIR"
 echo "codesigned with: $SIGN_IDENTITY" >&2
 echo "timestamp mode: ${TIMESTAMP_ARGS[*]}" >&2
+echo "options mode: ${OPTION_ARGS[*]:-(none)}" >&2
 echo "$APP_DIR"

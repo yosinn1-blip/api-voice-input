@@ -60,5 +60,6 @@ printf '== build signing checks ==\n'
 /usr/bin/grep -Fq 'CODESIGN_TIMESTAMP' scripts/build-app.sh
 /usr/bin/grep -Fq 'Developer ID Application:' scripts/build-app.sh
 /usr/bin/grep -Fq -- '--timestamp' scripts/build-app.sh
+/usr/bin/grep -Fq -- '--options runtime' scripts/build-app.sh
 
 printf 'release script verifier passed\n'
