@@ -44,7 +44,10 @@ rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 rm -f "$ZIP_PATH" "$ZIP_PATH.sha256" "$NOTES_PATH"
 COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --keepParent --norsrc "$BUILT_APP" "$ZIP_PATH"
-/usr/bin/shasum -a 256 "$ZIP_PATH" > "$ZIP_PATH.sha256"
+(
+  cd "$DIST_DIR"
+  /usr/bin/shasum -a 256 "$(basename "$ZIP_PATH")" > "$(basename "$ZIP_PATH.sha256")"
+)
 
 cat > "$NOTES_PATH" <<EON
 API音声ソフト ${VERSION} (${BUILD})

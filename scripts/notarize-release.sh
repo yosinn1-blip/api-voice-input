@@ -60,7 +60,10 @@ spctl --assess --type execute --verbose=4 "$APP_PATH"
 printf '== recreate notarized ZIP ==\n'
 rm -f "$ZIP_PATH" "$SHA_PATH"
 COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --keepParent --norsrc "$APP_PATH" "$ZIP_PATH"
-/usr/bin/shasum -a 256 "$ZIP_PATH" > "$SHA_PATH"
+(
+  cd "$DIST_DIR"
+  /usr/bin/shasum -a 256 "$(basename "$ZIP_PATH")" > "$(basename "$SHA_PATH")"
+)
 
 printf 'notarized_zip=%s\n' "$ZIP_PATH"
 printf 'sha256=%s\n' "$SHA_PATH"
