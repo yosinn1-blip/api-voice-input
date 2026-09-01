@@ -26,13 +26,19 @@ public struct EmptyUtteranceGuard: Sendable {
         return activity.rmsDBFS < Self.quietHallucinationRMSDBFS
     }
 
-    private static let commonSilenceHallucinations: Set<String> = [
+    private static let baseSilenceHallucinations: [String] = [
         // 感謝系
         "ありがとうございました",
         "ありがとうございます",
-        "ありがとうございました",
+        "ご視聴ありがとうございましたです",
         "ご視聴ありがとうございました",
         "ご視聴ありがとうございます",
+        "ご視聴ありがとう",
+        "ご視聴",
+        "ごちそうさまでした",
+        "ごちそうさま",
+        "ごちしょう",
+        "ごちそう",
         "ご清聴ありがとうございました",
         "ご清聴ありがとうございます",
         "ご覧いただきありがとうございました",
@@ -54,6 +60,19 @@ public struct EmptyUtteranceGuard: Sendable {
         "次回もよろしくお願いします",
         "よろしくお願いいたします"
     ]
+
+    /// Exact-match set used only for quiet/silence audio. Includes concatenated pairs of
+    /// known closings so stacked Whisper outros ("ごちしょうありがとうございました")
+    /// are suppressed without treating them as real speech.
+    private static let commonSilenceHallucinations: Set<String> = {
+        var set = Set(baseSilenceHallucinations)
+        for first in baseSilenceHallucinations {
+            for second in baseSilenceHallucinations {
+                set.insert(first + second)
+            }
+        }
+        return set
+    }()
 
     private static func normalize(_ text: String) -> String {
         text

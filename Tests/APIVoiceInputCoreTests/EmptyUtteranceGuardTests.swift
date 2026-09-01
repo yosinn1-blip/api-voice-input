@@ -38,6 +38,29 @@ final class EmptyUtteranceGuardTests: XCTestCase {
         XCTAssertFalse(guarder.shouldSuppressTranscript("ありがとうございました。", activity: activity))
     }
 
+
+    func testGoshichoDesuAndGochisouVariantsAreSuppressedWhenQuiet() {
+        let guarder = EmptyUtteranceGuard()
+        let quiet = AudioActivitySummary(durationSeconds: 3.0, rmsDBFS: -48, peakDBFS: -32)
+        let active = AudioActivitySummary(durationSeconds: 3.0, rmsDBFS: -20, peakDBFS: -6)
+
+        XCTAssertTrue(guarder.shouldSuppressTranscript("ご視聴ありがとうございましたです", activity: quiet))
+        XCTAssertTrue(guarder.shouldSuppressTranscript("ごちそうさまでした。", activity: quiet))
+        XCTAssertTrue(guarder.shouldSuppressTranscript("ごちそうさま", activity: quiet))
+        XCTAssertTrue(guarder.shouldSuppressTranscript("ごちしょう", activity: quiet))
+        XCTAssertTrue(guarder.shouldSuppressTranscript("ごちそう", activity: quiet))
+        XCTAssertFalse(guarder.shouldSuppressTranscript("ご視聴ありがとうございましたです", activity: active))
+    }
+
+    func testConcatenatedClosingsAreSuppressedWhenQuiet() {
+        let guarder = EmptyUtteranceGuard()
+        let quiet = AudioActivitySummary(durationSeconds: 3.0, rmsDBFS: -48, peakDBFS: -32)
+
+        XCTAssertTrue(guarder.shouldSuppressTranscript("ごちしょうありがとうございました", activity: quiet))
+        XCTAssertTrue(guarder.shouldSuppressTranscript("ご視聴ありがとうございましたですありがとうございました", activity: quiet))
+        XCTAssertFalse(guarder.shouldSuppressTranscript("このコメントを修正してください。ご視聴ありがとうございましたです", activity: quiet))
+    }
+
     func testAudioActivityAnalyzerSeparatesSilenceFromTone() throws {
         let analyzer = AudioActivityAnalyzer()
         let silenceURL = try writeCAF(name: "silence", amplitude: 0)

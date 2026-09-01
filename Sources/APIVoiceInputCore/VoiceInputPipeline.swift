@@ -20,20 +20,158 @@ public final class VoiceInputPipeline: Sendable {
     }
 
     public func run(audioFileURL: URL, profile: VoiceProfile) async throws -> VoiceInputResult {
-        let transcript = try await transcriptionProvider
+        let transcript = TranscriptHallucinationFilter.sanitize(try await transcriptionProvider
             .transcribe(audioFileURL: audioFileURL, languageHint: profile.sttLanguageHint)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .whitespacesAndNewlines))
         guard transcript.isEmpty == false else {
             throw VoiceInputError.emptyTranscript
         }
 
-        let cleaned = try await cleanupProvider
+        let cleaned = TranscriptHallucinationFilter.sanitize(try await cleanupProvider
             .clean(transcript: transcript, prompt: profile.cleanupPrompt)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .whitespacesAndNewlines))
         guard cleaned.isEmpty == false else {
             throw VoiceInputError.emptyCleanedText
         }
 
         return VoiceInputResult(rawTranscript: transcript, finalText: cleaned)
+    }
+}
+
+enum TranscriptHallucinationFilter {
+    private static let thanksPhrases = ["ありがとうございました", "ありがとうございます"]
+    // Longer phrases first so "API音声ソフト" wins over the shorter "音声ソフト" suffix.
+    private static let appNamePhrases = ["API音声ソフト", "音声ソフト"]
+    // Longer first so nested ご視聴 / ごちそう suffixes do not win over full closings.
+    private static let viewingThanksPhrases = [
+        "ご視聴ありがとうございましたです",
+        "ご視聴ありがとうございました",
+        "ご視聴ありがとうございます",
+        "ごちそうさまでした",
+        "ご視聴ありがとう",
+        "ごちそうさま",
+        "ごちしょう",
+        "ごちそう",
+        "ご視聴"
+    ]
+    private static let delimiterOnlyPhrases: Set<String> = ["ご視聴", "ごちそう"]
+    private static let trailingPhrases = viewingThanksPhrases + thanksPhrases + appNamePhrases
+    private static let terminalPunctuation = CharacterSet(charactersIn: "。！？!?.、, 　\t\n\r")
+
+    /// Whisper can prefix or append stock phrases around an otherwise complete utterance,
+    /// especially when the recording starts or ends in silence or the STT prompt mentions
+    /// the app name. Preserve a standalone acknowledgement / app-name utterance.
+    /// Viewing-thanks closings (goshicho*) are Whisper hallucinations even as the entire
+    /// transcript -- never paste them. Trailing phrases are stripped repeatedly (longest-first).
+    /// If that would empty a non-goshicho greeting (e.g. arigatou gozaimashita), keep original.
+    static func sanitize(_ text: String) -> String {
+        var current = text
+        while true {
+            let next = removingTrailingHallucinations(from: removingLeadingViewingThanks(from: current))
+            if next == current {
+                break
+            }
+            current = next
+        }
+        let core = current.trimmingCharacters(in: terminalPunctuation.union(.whitespacesAndNewlines))
+        // Whole utterance was greeting(s): drop goshicho* (including stacked closings),
+        // otherwise keep original (standalone thanks / app name / gochisou).
+        if core.isEmpty || trailingPhrases.contains(core) {
+            if isStandaloneGoshichoHallucination(text) {
+                return ""
+            }
+            return text
+        }
+        return current
+    }
+
+    /// Entire utterance is only stock closings and includes goshicho. Real sentences that
+    /// merely contain goshicho never reach this check.
+    private static func isStandaloneGoshichoHallucination(_ text: String) -> Bool {
+        text.range(of: "ご視聴") != nil
+    }
+
+    static func removingAppendedThanks(from text: String) -> String {
+        removingAppendedPhrase(from: text, phrases: thanksPhrases)
+    }
+
+    private static func removingTrailingHallucinations(from text: String) -> String {
+        var current = text
+        while true {
+            let next = removingAppendedPhrase(from: current, phrases: trailingPhrases)
+            if next == current {
+                return current
+            }
+            current = next
+        }
+    }
+
+    private static func removingAppendedPhrase(from text: String, phrases: [String]) -> String {
+        let withoutTerminalPunctuation = text.trimmingCharacters(in: terminalPunctuation)
+        for phrase in phrases where withoutTerminalPunctuation.hasSuffix(phrase) {
+            let contentEnd = withoutTerminalPunctuation.index(withoutTerminalPunctuation.endIndex, offsetBy: -phrase.count)
+            let precedingContent = String(withoutTerminalPunctuation[..<contentEnd])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Standalone utterance of this phrase (including nested shorter names like
+            // "API音声ソフト"): keep the original text and do not fall through to a
+            // shorter suffix that would wrongly strip part of the phrase.
+            if precedingContent.isEmpty {
+                return text
+            }
+            if delimiterOnlyPhrases.contains(phrase) && !endsWithDelimiter(precedingContent) {
+                continue
+            }
+            return precedingContent
+        }
+        return text
+    }
+
+    private static func removingLeadingViewingThanks(from text: String) -> String {
+        let withoutLeadingPunctuation = trim(text, set: terminalPunctuation, leading: true, trailing: false)
+        for phrase in viewingThanksPhrases where withoutLeadingPunctuation.hasPrefix(phrase) {
+            let contentStart = withoutLeadingPunctuation.index(withoutLeadingPunctuation.startIndex, offsetBy: phrase.count)
+            let following = String(withoutLeadingPunctuation[contentStart...])
+            let followingContent = trim(following, set: terminalPunctuation.union(.whitespacesAndNewlines), leading: true, trailing: false)
+            if followingContent.isEmpty {
+                return text
+            }
+            if delimiterOnlyPhrases.contains(phrase) && !startsWithDelimiter(following) {
+                continue
+            }
+            return followingContent
+        }
+        return text
+    }
+
+    private static func startsWithDelimiter(_ text: String) -> Bool {
+        guard let first = text.first else { return false }
+        return terminalPunctuation.union(.whitespacesAndNewlines).isSuperset(of: CharacterSet(first.unicodeScalars))
+    }
+
+    private static func endsWithDelimiter(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let last = trimmed.last else { return false }
+        return terminalPunctuation.isSuperset(of: CharacterSet(last.unicodeScalars))
+    }
+
+    private static func trim(_ text: String, set: CharacterSet, leading: Bool, trailing: Bool) -> String {
+        var start = text.startIndex
+        var end = text.endIndex
+        if leading {
+            while start < end, set.isSuperset(of: CharacterSet(text[start].unicodeScalars)) {
+                start = text.index(after: start)
+            }
+        }
+        if trailing {
+            while start < end {
+                let previous = text.index(before: end)
+                if set.isSuperset(of: CharacterSet(text[previous].unicodeScalars)) {
+                    end = previous
+                } else {
+                    break
+                }
+            }
+        }
+        return String(text[start..<end])
     }
 }
