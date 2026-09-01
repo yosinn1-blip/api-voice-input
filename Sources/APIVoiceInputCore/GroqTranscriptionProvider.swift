@@ -31,13 +31,30 @@ public struct URLSessionHTTPClient: HTTPClient {
 }
 
 public struct GroqTranscriptionProvider: TranscriptionProvider {
+    /// Groq's more accurate multilingual Whisper (`whisper-large-v3`, WER 10.3%).
+    /// `whisper-large-v3-turbo` is faster (WER 12%) but worse for error-sensitive Japanese dictation.
     public let id = "groq-whisper-large-v3"
+    static let modelName = "whisper-large-v3"
+    static let temperature = "0"
+
+    /// Whisper prompt (max 224 tokens) guides style, not instructions.
+    /// Conversational Japanese dictation; do not include YouTube outro / app-name strings
+    /// because Whisper copies prompt wording into the transcript.
+    static let transcriptionPrompt =
+        "これは日本語の日常会話の書き起こしです。話した内容だけを正確に書き取り、字幕や動画エンディングの定型文は付けない。Codex, Claude, ChatGPT, Gemini, Groq, Whisper, OpenAI, Anthropic, YouTube, GitHub, Git, Swift, Xcode, API"
+
     private let apiKey: String
     private let httpClient: any HTTPClient
 
     public init(apiKey: String, httpClient: any HTTPClient = URLSessionHTTPClient()) {
         self.apiKey = apiKey
         self.httpClient = httpClient
+    }
+
+    /// Empty/blank hints fall back to Japanese. Named profiles (e.g. English) still pass through.
+    static func resolvedLanguage(from languageHint: String) -> String {
+        let trimmed = languageHint.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "ja" : trimmed
     }
 
     public func transcribe(audioFileURL: URL, languageHint: String) async throws -> String {
@@ -70,11 +87,19 @@ public struct GroqTranscriptionProvider: TranscriptionProvider {
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"model\"\r\n\r\n")
-        append("whisper-large-v3\r\n")
+        append("\(Self.modelName)\r\n")
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"language\"\r\n\r\n")
-        append("\(languageHint)\r\n")
+        append("\(Self.resolvedLanguage(from: languageHint))\r\n")
+
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"temperature\"\r\n\r\n")
+        append("\(Self.temperature)\r\n")
+
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n")
+        append("\(Self.transcriptionPrompt)\r\n")
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n")
