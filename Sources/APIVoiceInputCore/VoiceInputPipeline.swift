@@ -60,10 +60,10 @@ enum TranscriptHallucinationFilter {
 
     /// Whisper can prefix or append stock phrases around an otherwise complete utterance,
     /// especially when the recording starts or ends in silence or the STT prompt mentions
-    /// the app name. Preserve a standalone acknowledgement / app-name / viewing-thanks
-    /// utterance; only remove the phrase when it is affixed to actual content.
-    /// Trailing phrases are stripped repeatedly (longest-first). If that would empty the
-    /// string, the original utterance is kept (the whole thing was a greeting).
+    /// the app name. Preserve a standalone acknowledgement / app-name utterance.
+    /// Viewing-thanks closings (goshicho*) are Whisper hallucinations even as the entire
+    /// transcript -- never paste them. Trailing phrases are stripped repeatedly (longest-first).
+    /// If that would empty a non-goshicho greeting (e.g. arigatou gozaimashita), keep original.
     static func sanitize(_ text: String) -> String {
         var current = text
         while true {
@@ -74,11 +74,21 @@ enum TranscriptHallucinationFilter {
             current = next
         }
         let core = current.trimmingCharacters(in: terminalPunctuation.union(.whitespacesAndNewlines))
-        // Whole utterance was greeting(s): keep original (including stacked closings).
+        // Whole utterance was greeting(s): drop goshicho* (including stacked closings),
+        // otherwise keep original (standalone thanks / app name / gochisou).
         if core.isEmpty || trailingPhrases.contains(core) {
+            if isStandaloneGoshichoHallucination(text) {
+                return ""
+            }
             return text
         }
         return current
+    }
+
+    /// Entire utterance is only stock closings and includes goshicho. Real sentences that
+    /// merely contain goshicho never reach this check.
+    private static func isStandaloneGoshichoHallucination(_ text: String) -> Bool {
+        text.range(of: "ご視聴") != nil
     }
 
     static func removingAppendedThanks(from text: String) -> String {

@@ -70,9 +70,19 @@ final class VoiceInputPipelineTests: XCTestCase {
         XCTAssertEqual(result.finalText, "ありがとうございました。")
     }
 
-    func testSanitizeKeepsWholeUtteranceWhenItIsOnlyStackedClosings() {
-        let stacked = "ご視聴ありがとうございましたですありがとうございました"
-        XCTAssertEqual(TranscriptHallucinationFilter.sanitize(stacked), stacked)
+    func testSanitizeDropsStandaloneGoshichoEvenAsEntireUtterance() {
+        XCTAssertEqual(TranscriptHallucinationFilter.sanitize("ご視聴ありがとうございました。"), "")
+        XCTAssertEqual(TranscriptHallucinationFilter.sanitize("ご視聴ありがとうございました"), "")
+        XCTAssertEqual(TranscriptHallucinationFilter.sanitize("ご視聴ありがとうございましたです"), "")
+        XCTAssertEqual(TranscriptHallucinationFilter.sanitize("ご視聴ありがとうございます。"), "")
+        XCTAssertEqual(TranscriptHallucinationFilter.sanitize("ご視聴ありがとうございます"), "")
+    }
+
+    func testSanitizeDropsStackedClosingsThatIncludeGoshicho() {
+        XCTAssertEqual(
+            TranscriptHallucinationFilter.sanitize("ご視聴ありがとうございましたですありがとうございました"),
+            ""
+        )
         XCTAssertEqual(TranscriptHallucinationFilter.sanitize("ごちそうさまでした"), "ごちそうさまでした")
     }
 
@@ -151,16 +161,19 @@ final class VoiceInputPipelineTests: XCTestCase {
         XCTAssertEqual(result.finalText, "ご視聴のうえご検討ください")
     }
 
-    func testPipelineKeepsStandaloneViewingThanksTranscript() async throws {
+    func testPipelineDropsStandaloneViewingThanksTranscript() async throws {
         let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("voice-standalone-goshicho.m4a")
         try Data("fake".utf8).write(to: audioURL)
         let transcription = MockTranscriptionProvider(result: "ご視聴ありがとうございました。")
-        let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: NoCleanupProvider())
+        let cleanup = MockCleanupProvider(result: "unused")
+        let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: cleanup)
 
-        let result = try await pipeline.run(audioFileURL: audioURL, profile: .defaultJapanese)
-
-        XCTAssertEqual(result.rawTranscript, "ご視聴ありがとうございました。")
-        XCTAssertEqual(result.finalText, "ご視聴ありがとうございました。")
+        do {
+            _ = try await pipeline.run(audioFileURL: audioURL, profile: .defaultJapanese)
+            XCTFail("Expected emptyTranscript")
+        } catch VoiceInputError.emptyTranscript {
+            XCTAssertEqual(cleanup.callCount, 0)
+        }
     }
 
     func testEmptyTranscriptFailsBeforeCleanup() async throws {
