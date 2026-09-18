@@ -43,9 +43,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         DebugLog.write("app launched")
+        BrowserPauseBridge.shared.start()
         YouTubePauseController.restorePendingMuteOnLaunchIfNeeded()
         statusMenu = StatusMenuController { [weak self] in
             self?.toggleRecording(source: "menu")
+        } restartAction: { [weak self] in
+            self?.restartApplication()
         } openAccessibilitySettings: {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
         } openGroqAPIKeyPage: {
@@ -78,6 +81,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         requestAccessibilityPermissionIfNeeded()
         requestMicrophonePermission()
         showGroqAPIKeyOnboardingIfNeeded()
+    }
+
+    private func restartApplication() {
+        let command = RelaunchCommand.afterTerminating(
+            processID: ProcessInfo.processInfo.processIdentifier,
+            applicationURL: Bundle.main.bundleURL
+        )
+        let process = Process()
+        process.executableURL = command.executableURL
+        process.arguments = command.arguments
+        do {
+            try process.run()
+            DebugLog.write("restart requested")
+            NSApp.terminate(nil)
+        } catch {
+            DebugLog.write("restart failed error=\(error.localizedDescription)")
+            let alert = NSAlert()
+            alert.messageText = "再起動できませんでした"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+        }
     }
 
     private func showGroqAPIKeyOnboardingIfNeeded() {
@@ -425,6 +449,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let notifiedTabs = BrowserPauseBridge.shared.broadcastPause()
+        DebugLog.write("browser bridge pause broadcast tabs=\(notifiedTabs)")
         DebugLog.write("youtube pause prepare async begin session=\(sessionID.uuidString)")
         DispatchQueue.global(qos: .userInitiated).async {
             let snapshot = YouTubePauseController().prepareYouTubeBeforeRecording()

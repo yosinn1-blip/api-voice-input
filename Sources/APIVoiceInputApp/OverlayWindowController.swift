@@ -12,6 +12,19 @@ final class OverlayWindowController {
         case failed = "失敗しました"
         case canceled = "音声なし"
         case conversationWaiting = "待機中"
+
+        var presentation: OverlayPresentationState {
+            switch self {
+            case .recording: return .recording
+            case .transcribing: return .transcribing
+            case .cleaning: return .cleaning
+            case .pasting: return .pasting
+            case .pasted: return .pasted
+            case .failed: return .failed
+            case .canceled: return .canceled
+            case .conversationWaiting: return .conversationWaiting
+            }
+        }
     }
 
     private let window: NSWindow
@@ -19,6 +32,7 @@ final class OverlayWindowController {
     private let progressView = ProcessingGaugeView()
     private let style = RecordingOverlayVisualStyle.typelessInspired
     private let contentView = NSView()
+    private var autoHideTimer: Timer?
 
     init() {
         waveformView.translatesAutoresizingMaskIntoConstraints = false
@@ -65,12 +79,36 @@ final class OverlayWindowController {
         updateVisual(for: state)
         positionWindow()
         window.orderFrontRegardless()
+        scheduleAutoHide(for: state)
     }
 
     func hide() {
+        cancelAutoHide()
         waveformView.stopAnimating()
         progressView.stopAnimating()
         window.orderOut(nil)
+    }
+
+    /// 呼び出し側が `hide()` を呼び忘れても画面に残らないようにする。
+    /// このウィンドウは `ignoresMouseEvents = true` なのでユーザーが自分で消せず、
+    /// 消し忘れはアプリの再起動でしか回復できない（2026-09-18 に実害を確認）。
+    private func scheduleAutoHide(for state: State) {
+        cancelAutoHide()
+        guard let seconds = OverlayAutoHidePolicy.autoHideSeconds(for: state.presentation) else { return }
+        let timer = Timer(timeInterval: seconds, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                DebugLog.write("overlay auto-hide state=\(state.rawValue) after=\(seconds)s")
+                self.hide()
+            }
+        }
+        autoHideTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func cancelAutoHide() {
+        autoHideTimer?.invalidate()
+        autoHideTimer = nil
     }
 
     func setConversationGlow(_ active: Bool) {

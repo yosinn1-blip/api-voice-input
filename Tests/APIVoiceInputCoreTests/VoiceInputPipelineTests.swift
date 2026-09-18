@@ -191,6 +191,24 @@ final class VoiceInputPipelineTests: XCTestCase {
         }
     }
 
+    func testQuietVideoHallucinationIsBlockedAfterRealCleanupPipeline() async throws {
+        let phrase = "この動画は、GitHubのGitHubの動画をご覧いただき、ありがとうございました。"
+        let pipeline = VoiceInputPipeline(
+            transcriptionProvider: MockTranscriptionProvider(result: phrase),
+            cleanupProvider: FillerRemovalCleanupProvider()
+        )
+        let result = try await pipeline.run(
+            audioFileURL: URL(fileURLWithPath: "/unused-mocked-audio.m4a"),
+            profile: .defaultJapanese
+        )
+        let quiet = AudioActivitySummary(durationSeconds: 32.06, rmsDBFS: -49.8, peakDBFS: -24.2)
+        let active = AudioActivitySummary(durationSeconds: 5, rmsDBFS: -24, peakDBFS: -7.9)
+        let guarder = EmptyUtteranceGuard()
+        XCTAssertTrue(guarder.shouldSuppressTranscript(result.rawTranscript, activity: quiet))
+        XCTAssertTrue(guarder.shouldSuppressTranscript(result.finalText, activity: quiet))
+        XCTAssertFalse(guarder.shouldSuppressTranscript(result.finalText, activity: active))
+    }
+
     private struct PipelineRun {
         let rawTranscript: String
         let finalText: String

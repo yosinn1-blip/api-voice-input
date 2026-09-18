@@ -17,13 +17,22 @@ public struct EmptyUtteranceGuard: Sendable {
 
     public func shouldSuppressTranscript(_ transcript: String, activity: AudioActivitySummary) -> Bool {
         let normalized = Self.normalize(transcript)
-        guard Self.commonSilenceHallucinations.contains(normalized) else {
+        guard Self.commonSilenceHallucinations.contains(normalized)
+            || Self.isVideoTemplateHallucination(normalized) else {
             return false
         }
         // Peak is deliberately excluded: transient background noise (AC, keyboard) can spike peak
-        // above -18 dBFS even with no speech, causing false negatives. RMS alone reliably
-        // distinguishes silence from actual voice.
+        // above -18 dBFS even with no speech. Quiet RMS is only a supporting signal,
+        // not proof of silence: suppress only a narrowly matched known template.
         return activity.rmsDBFS < Self.quietHallucinationRMSDBFS
+    }
+
+    /// Match the entire reported video boilerplate, never a substring of a real request.
+    /// Keep the audio-level gate so an actively dictated video introduction is preserved.
+    private static func isVideoTemplateHallucination(_ text: String) -> Bool {
+        let compact = text.components(separatedBy: .whitespacesAndNewlines).joined()
+        let pattern = #"^この動画は(?:githubの)*動画をご覧いただき(?:ありがとうございます|ありがとうございました)?$"#
+        return compact.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     private static let baseSilenceHallucinations: [String] = [

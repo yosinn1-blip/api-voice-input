@@ -19,13 +19,14 @@ final class GroqTranscriptionProviderTests: XCTestCase {
 
     func testTranscriptionPromptBiasesConversationalJapaneseAndOmitsOutroSeeds() {
         let prompt = GroqTranscriptionProvider.transcriptionPrompt
-        XCTAssertTrue(prompt.contains("日本語"))
-        XCTAssertTrue(prompt.contains("書き起こし"))
-        XCTAssertTrue(prompt.contains("定型文は付けない"))
+        XCTAssertFalse(prompt.contains("日本語"), "The language multipart field already pins Japanese")
+        XCTAssertFalse(prompt.contains("書き起こし"), "Whisper may copy instruction wording into the transcript")
+        XCTAssertFalse(prompt.contains("定型文は付けない"), "Whisper may copy instruction wording into the transcript")
         XCTAssertFalse(prompt.contains("ご視聴ありがとうございました"))
         XCTAssertFalse(prompt.contains("ご視聴ありがとうございましたです"))
         XCTAssertFalse(prompt.contains("音声ソフト"))
         XCTAssertFalse(prompt.contains("API音声ソフト"))
+        XCTAssertFalse(prompt.contains("字幕"), "Whisper may copy prompt wording into the transcript")
         for noun in ["Codex", "Claude", "ChatGPT", "Gemini", "YouTube", "GitHub", "Swift", "Xcode", "API"] {
             XCTAssertTrue(prompt.contains(noun), "missing proper-noun hint: \(noun)")
         }

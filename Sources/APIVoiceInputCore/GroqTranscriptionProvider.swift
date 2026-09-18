@@ -37,11 +37,10 @@ public struct GroqTranscriptionProvider: TranscriptionProvider {
     static let modelName = "whisper-large-v3"
     static let temperature = "0"
 
-    /// Whisper prompt (max 224 tokens) guides style, not instructions.
-    /// Conversational Japanese dictation; do not include YouTube outro / app-name strings
-    /// because Whisper copies prompt wording into the transcript.
+    /// Whisper may copy prompt wording into the transcript. Japanese is pinned by the
+    /// multipart language field, so keep this prompt to proper-noun hints only.
     static let transcriptionPrompt =
-        "これは日本語の日常会話の書き起こしです。話した内容だけを正確に書き取り、字幕や動画エンディングの定型文は付けない。Codex, Claude, ChatGPT, Gemini, Groq, Whisper, OpenAI, Anthropic, YouTube, GitHub, Git, Swift, Xcode, API"
+        "Codex, Claude, ChatGPT, Gemini, Groq, Whisper, OpenAI, Anthropic, YouTube, GitHub, Git, Swift, Xcode, API"
 
     private let apiKey: String
     private let httpClient: any HTTPClient

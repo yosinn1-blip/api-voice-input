@@ -74,6 +74,32 @@ final class EmptyUtteranceGuardTests: XCTestCase {
         XCTAssertGreaterThan(tone.peakDBFS, -15)
     }
 
+    func testReportedVideoHallucinationIsSuppressedAtObservedQuietLevel() {
+        let guarder = EmptyUtteranceGuard()
+        let quiet = AudioActivitySummary(durationSeconds: 32.06, rmsDBFS: -49.8, peakDBFS: -24.2)
+        // A transient peak lets this recording reach transcription; the post-STT guard must catch it.
+        XCTAssertFalse(guarder.shouldSkipTranscription(activity: quiet))
+        for text in [
+            "この動画は、GitHubのGitHubの動画をご覧いただき",
+            "この動画は、GitHubの動画をご覧いただき。",
+            "この動画は、github の GitHub の動画をご覧いただき、ありがとうございました。",
+            "この動画は、GitHubの\nGitHubの動画をご覧いただき"
+        ] {
+            XCTAssertTrue(guarder.shouldSuppressTranscript(text, activity: quiet), text)
+        }
+    }
+
+    func testVideoGuardPreservesSpeechAndNonTemplateRequests() {
+        let guarder = EmptyUtteranceGuard()
+        let active = AudioActivitySummary(durationSeconds: 4, rmsDBFS: -24, peakDBFS: -7.9)
+        let quiet = AudioActivitySummary(durationSeconds: 32.06, rmsDBFS: -49.8, peakDBFS: -24.2)
+        let phrase = "この動画は、GitHubのGitHubの動画をご覧いただき"
+        XCTAssertFalse(guarder.shouldSuppressTranscript(phrase, activity: active))
+        for text in ["GitHubの動画を見てください", "この動画はGitHubの使い方です", phrase + "という文字が勝手に出ます。修正してください。", "小声でもこの文章は残してください"] {
+            XCTAssertFalse(guarder.shouldSuppressTranscript(text, activity: quiet), text)
+        }
+    }
+
     private func writeCAF(name: String, amplitude: Float) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("APIVoiceInput-\(name)-\(UUID().uuidString)")
