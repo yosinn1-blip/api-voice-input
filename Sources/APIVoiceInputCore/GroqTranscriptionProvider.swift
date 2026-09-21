@@ -37,8 +37,10 @@ public struct GroqTranscriptionProvider: TranscriptionProvider {
     static let modelName = "whisper-large-v3"
     static let temperature = "0"
 
-    /// Whisper may copy prompt wording into the transcript. Japanese is pinned by the
-    /// multipart language field, so keep this prompt to proper-noun hints only.
+    /// Whisper copies prompt wording into the transcript, so keep this to proper-noun
+    /// hints only -- no sentence that declares the recording's language. The language
+    /// itself is pinned by the multipart `language` field.
+    /// Only sent for Japanese requests (see `multipartBody`).
     static let transcriptionPrompt =
         "Codex, Claude, ChatGPT, Gemini, Groq, Whisper, OpenAI, Anthropic, YouTube, GitHub, Git, Swift, Xcode, API"
 
@@ -88,17 +90,20 @@ public struct GroqTranscriptionProvider: TranscriptionProvider {
         append("Content-Disposition: form-data; name=\"model\"\r\n\r\n")
         append("\(Self.modelName)\r\n")
 
+        let language = Self.resolvedLanguage(from: languageHint)
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"language\"\r\n\r\n")
-        append("\(Self.resolvedLanguage(from: languageHint))\r\n")
+        append("\(language)\r\n")
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"temperature\"\r\n\r\n")
         append("\(Self.temperature)\r\n")
 
-        append("--\(boundary)\r\n")
-        append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n")
-        append("\(Self.transcriptionPrompt)\r\n")
+        if language == "ja" {
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n")
+            append("\(Self.transcriptionPrompt)\r\n")
+        }
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n")

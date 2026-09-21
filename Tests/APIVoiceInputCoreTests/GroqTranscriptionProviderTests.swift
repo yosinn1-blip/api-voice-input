@@ -67,6 +67,26 @@ final class GroqTranscriptionProviderTests: XCTestCase {
         XCTAssertTrue(bodyText.contains("name=\"language\"\r\n\r\nja\r\n"))
     }
 
+    func testGroqProviderSendsPromptOnlyForJapanese() async throws {
+        let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("groq-prompt-lang.wav")
+        try Data("audio".utf8).write(to: audioURL)
+
+        let japaneseClient = MockHTTPClient(response: HTTPResponse(statusCode: 200, data: Data(#"{"text":"テスト"}"#.utf8)))
+        _ = try await GroqTranscriptionProvider(apiKey: "test-key", httpClient: japaneseClient)
+            .transcribe(audioFileURL: audioURL, languageHint: "ja")
+        let japaneseBody = String(data: japaneseClient.requests[0].body, encoding: .utf8) ?? ""
+        XCTAssertTrue(japaneseBody.contains("name=\"prompt\""))
+        XCTAssertTrue(japaneseBody.contains(GroqTranscriptionProvider.transcriptionPrompt))
+
+        let englishClient = MockHTTPClient(response: HTTPResponse(statusCode: 200, data: Data(#"{"text":"test"}"#.utf8)))
+        _ = try await GroqTranscriptionProvider(apiKey: "test-key", httpClient: englishClient)
+            .transcribe(audioFileURL: audioURL, languageHint: "en")
+        let englishBody = String(data: englishClient.requests[0].body, encoding: .utf8) ?? ""
+        XCTAssertTrue(englishBody.contains("name=\"language\"\r\n\r\nen\r\n"))
+        XCTAssertFalse(englishBody.contains("name=\"prompt\""))
+        XCTAssertFalse(englishBody.contains(GroqTranscriptionProvider.transcriptionPrompt))
+    }
+
     func testGroqProviderMaps429ToRateLimit() async throws {
         let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("groq-429.wav")
         try Data("audio".utf8).write(to: audioURL)

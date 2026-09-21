@@ -54,7 +54,19 @@ enum TranscriptHallucinationFilter {
         "ごちそう",
         "ご視聴"
     ]
-    private static let delimiterOnlyPhrases: Set<String> = ["ご視聴", "ごちそう"]
+    /// 日常会話でも普通に出る語尾は、区切り文字（。！？など）の直後に現れたときだけ剥がす。
+    /// 区切りなしで文末に続いている場合は本人が喋った言葉とみなして残す。
+    /// 「ご視聴ありがとうございました」「ごちしょう」系は口述筆記では実発話になり得ないので対象外。
+    private static let delimiterOnlyPhrases: Set<String> = [
+        "ご視聴",
+        "ごちそう",
+        "ありがとうございました",
+        "ありがとうございます",
+        "ごちそうさまでした",
+        "ごちそうさま",
+        "API音声ソフト",
+        "音声ソフト"
+    ]
     private static let trailingPhrases = viewingThanksPhrases + thanksPhrases + appNamePhrases
     private static let terminalPunctuation = CharacterSet(charactersIn: "。！？!?.、, 　\t\n\r")
 
