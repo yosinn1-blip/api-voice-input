@@ -40,6 +40,7 @@ public struct GroqTranscriptionProvider: TranscriptionProvider {
     /// Whisper prompt (max 224 tokens) guides style, not instructions.
     /// Conversational Japanese dictation; do not include YouTube outro / app-name strings
     /// because Whisper copies prompt wording into the transcript.
+    /// Only sent for Japanese requests; the wording itself declares Japanese.
     static let transcriptionPrompt =
         "これは日本語の日常会話の書き起こしです。話した内容だけを正確に書き取り、字幕や動画エンディングの定型文は付けない。Codex, Claude, ChatGPT, Gemini, Groq, Whisper, OpenAI, Anthropic, YouTube, GitHub, Git, Swift, Xcode, API"
 
@@ -89,17 +90,20 @@ public struct GroqTranscriptionProvider: TranscriptionProvider {
         append("Content-Disposition: form-data; name=\"model\"\r\n\r\n")
         append("\(Self.modelName)\r\n")
 
+        let language = Self.resolvedLanguage(from: languageHint)
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"language\"\r\n\r\n")
-        append("\(Self.resolvedLanguage(from: languageHint))\r\n")
+        append("\(language)\r\n")
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"temperature\"\r\n\r\n")
         append("\(Self.temperature)\r\n")
 
-        append("--\(boundary)\r\n")
-        append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n")
-        append("\(Self.transcriptionPrompt)\r\n")
+        if language == "ja" {
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n")
+            append("\(Self.transcriptionPrompt)\r\n")
+        }
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n")
