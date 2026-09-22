@@ -3,6 +3,12 @@ import Foundation
 public enum RecordingStopPresentation {
     public static let quickHideMaximumRecordingLevel = 0.25
 
+    /// Prioritize Enter responsiveness: begin transcription without a post-key recording
+    /// tail. The user must finish speaking before pressing Enter.
+    public static func recordingTailSeconds(stopSource: String) -> TimeInterval {
+        0
+    }
+
     public static func shouldHideOverlayImmediately(maxRecordingLevel: Double) -> Bool {
         maxRecordingLevel < quickHideMaximumRecordingLevel
     }

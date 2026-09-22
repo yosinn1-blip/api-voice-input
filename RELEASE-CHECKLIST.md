@@ -36,9 +36,9 @@ dist/api-voice-input-0.1.3-4.zip.sha256
 dist/api-voice-input-0.1.3-4-release-notes.txt
 ```
 
-## Optional notarization
+## Notarization
 
-The current MVP can still be shipped as a direct-download signed ZIP, but broader public distribution should use notarization.
+Public releases should be notarized. v0.1.5 was distributed as a notarized Developer ID ZIP; repeat these checks for every new release.
 
 - [ ] Review `docs/notarization.md`
 - [ ] Confirm `Developer ID Application` certificate is available in Keychain
@@ -90,4 +90,4 @@ Only after the ZIP is uploaded to a stable public URL:
 
 ## Notarization note
 
-The current MVP packaging script signs the app but does not notarize it. For broader public distribution, notarization with an Apple Developer account should be added. See `docs/notarization.md`.
+`package-release.sh` signs and packages the app; `notarize-release.sh` performs the notarization flow and recreates the final ZIP and checksum. See `docs/notarization.md`.

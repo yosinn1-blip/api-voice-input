@@ -110,9 +110,9 @@ Chromeで動画を確実に一時停止したい場合は、Chromeのメニュ�
 
 ## 配布について
 
-このMVPは直接配布用です。App Store版やnotarize済み版ではありません。
+このアプリはGitHub Releasesから直接配布しています。Mac App Store版ではありません。
 
-そのため、初回起動時にmacOSのGatekeeper警告が出る場合があります。公開配布を強める場合は、Apple Developer IDでのnotarizationが次の作業です。手順は [`docs/notarization.md`](./docs/notarization.md) を参照してください。
+公開中のv0.1.5 ZIPはDeveloper ID Applicationで署名し、Apple Notary serviceでnotarize済みです。Gatekeeper検証では `source=Notarized Developer ID` を確認しています。今後のリリースでも同じ検証を行う手順は [`docs/notarization.md`](./docs/notarization.md) を参照してください。
 
 ## 開発者向け
 

@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var conversationModeEnteredAt: Date = .distantPast
     private var conversationModeExitedAt: Date = .distantPast
     private var pendingF19Task: Task<Void, Never>?
+    private var pendingRecordingStopTask: Task<Void, Never>?
     private var f19ReceivedAt: Date = .distantPast
     private var audioLevelTimer: Timer?
     private var youTubeAudioSnapshot: YouTubePauseController.SystemAudioSnapshot?
@@ -27,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var savedFocusElement: AXUIElement?
 
     func applicationWillTerminate(_ notification: Notification) {
+        pendingRecordingStopTask?.cancel()
+        pendingRecordingStopTask = nil
         youTubePauseController.restoreSystemAudioIfNeeded(youTubeAudioSnapshot)
         youTubeAudioSnapshot = nil
         recordingSessionID = nil
@@ -302,6 +305,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func processToggle(source: String) {
         DebugLog.write("toggle source=\(source) isRecording=\(isRecording) isStarting=\(isStartingRecording) convMode=\(conversationMode)")
+        guard pendingRecordingStopTask == nil else {
+            DebugLog.write("toggle ignored while recording tail is being captured source=\(source)")
+            return
+        }
         // Karabiner遅延保護：会話モードON直後0.6s以内のFnイベントは無視
         let isFnEvent = source == "fn-long-press" || isFnTapSource(source)
         if isFnEvent && conversationMode && Date().timeIntervalSince(conversationModeEnteredAt) < 0.6 {
@@ -476,6 +483,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func finishRecording(source: String) {
+        let tailSeconds = RecordingStopPresentation.recordingTailSeconds(stopSource: source)
+        if tailSeconds > 0 {
+            guard pendingRecordingStopTask == nil else { return }
+            stopAudioLevelUpdates()
+            isRecording = false
+            hotkeyController?.setRecordingActive(false)
+            DebugLog.write(String(format: "finishRecording tail begin source=%@ seconds=%.2f", source, tailSeconds))
+            pendingRecordingStopTask = Task { @MainActor [weak self] in
+                let startedAt = ProcessInfo.processInfo.systemUptime
+                var tail = RecordingTailPolicy()
+                while !Task.isCancelled {
+                    guard let self else { return }
+                    let level = self.recorder.normalizedAudioLevel()
+                    self.maxRecordingLevel = max(self.maxRecordingLevel, level)
+                    self.overlay.updateRecordingLevel(level)
+                    let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
+                    if tail.shouldStop(elapsed: elapsed, level: level) {
+                        DebugLog.write(String(format: "finishRecording tail end elapsed=%.2f", elapsed))
+                        break
+                    }
+                    do {
+                        try await Task.sleep(nanoseconds: 25_000_000)
+                    } catch {
+                        return
+                    }
+                }
+                guard !Task.isCancelled, let self else { return }
+                self.pendingRecordingStopTask = nil
+                self.completeFinishRecording(source: source)
+            }
+            return
+        }
+        completeFinishRecording(source: source)
+    }
+
+    private func completeFinishRecording(source: String) {
         DebugLog.write("finishRecording requested source=\(source)")
         stopAudioLevelUpdates()
         let recordingLevel = maxRecordingLevel

@@ -26,6 +26,13 @@ final class RecordingStopPresentationTests: XCTestCase {
         XCTAssertEqual(RecordingStopPresentation.pasteMode(stopSource: "enter-stop"), .pasteThenEnter)
     }
 
+    func testEnterStopStartsTranscriptionWithoutAdditionalRecordingWait() {
+        XCTAssertEqual(RecordingStopPresentation.recordingTailSeconds(stopSource: "enter-stop"), 0)
+        XCTAssertEqual(RecordingStopPresentation.recordingTailSeconds(stopSource: "f19-hotkey"), 0)
+        XCTAssertEqual(RecordingStopPresentation.recordingTailSeconds(stopSource: "menu"), 0)
+        XCTAssertEqual(RecordingStopPresentation.recordingTailSeconds(stopSource: "conversation-mode-cancel"), 0)
+    }
+
     func testConversationCancelHidesOverlayAndCancelsTranscription() {
         XCTAssertTrue(RecordingStopPresentation.shouldHideOverlayImmediately(maxRecordingLevel: 0.8, stopSource: "conversation-mode-cancel"))
         XCTAssertTrue(RecordingStopPresentation.shouldCancelTranscription(stopSource: "conversation-mode-cancel"))
