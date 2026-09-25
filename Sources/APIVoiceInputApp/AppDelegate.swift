@@ -606,8 +606,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let cleanup: any CleanupProvider = FillerRemovalCleanupProvider()
             DebugLog.write("cleanup provider=rule-based-filler-removal")
             let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: cleanup)
+            let trimmed = (try? LeadingSilenceTrimmer().trimIfNeeded(audioFileURL: audioURL)) ?? (url: audioURL, trimmedSeconds: 0)
+            defer {
+                if trimmed.url != audioURL {
+                    try? FileManager.default.removeItem(at: trimmed.url)
+                }
+            }
+            DebugLog.write(String(format: "leadingSilence trimmed=%.2f", trimmed.trimmedSeconds))
             DebugLog.write("process transcription begin")
-            let result = try await pipeline.run(audioFileURL: audioURL, profile: profile)
+            let result = try await pipeline.run(audioFileURL: trimmed.url, profile: profile)
             DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")
             if emptyGuard.shouldSuppressTranscript(result.rawTranscript, activity: activity)
                 || emptyGuard.shouldSuppressTranscript(result.finalText, activity: activity) {
