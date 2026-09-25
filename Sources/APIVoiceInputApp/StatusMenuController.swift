@@ -5,6 +5,7 @@ final class StatusMenuController: NSObject {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
     private let toggleAction: () -> Void
+    private let restartAction: () -> Void
     private let openAccessibilitySettings: () -> Void
     private let openGroqAPIKeyPage: () -> Void
     private let openSetupGuide: () -> Void
@@ -17,6 +18,7 @@ final class StatusMenuController: NSObject {
 
     init(
         toggleAction: @escaping () -> Void,
+        restartAction: @escaping () -> Void,
         openAccessibilitySettings: @escaping () -> Void,
         openGroqAPIKeyPage: @escaping () -> Void,
         openSetupGuide: @escaping () -> Void,
@@ -27,6 +29,7 @@ final class StatusMenuController: NSObject {
         setMediaControlEnabled: @escaping (Bool) -> Void
     ) {
         self.toggleAction = toggleAction
+        self.restartAction = restartAction
         self.openAccessibilitySettings = openAccessibilitySettings
         self.openGroqAPIKeyPage = openGroqAPIKeyPage
         self.openSetupGuide = openSetupGuide
@@ -65,12 +68,19 @@ final class StatusMenuController: NSObject {
         accessibility.target = self
         menu.addItem(accessibility)
         menu.addItem(NSMenuItem.separator())
+        let restart = NSMenuItem(title: "再起動", action: #selector(restart), keyEquivalent: "")
+        restart.target = self
+        menu.addItem(restart)
         menu.addItem(NSMenuItem(title: "終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         item.menu = menu
     }
 
     @objc private func toggleRecording() {
         toggleAction()
+    }
+
+    @objc private func restart() {
+        restartAction()
     }
 
     @objc private func openAccessibility() {

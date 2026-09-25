@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var conversationModeEnteredAt: Date = .distantPast
     private var conversationModeExitedAt: Date = .distantPast
     private var pendingF19Task: Task<Void, Never>?
+    private var pendingRecordingStopTask: Task<Void, Never>?
     private var f19ReceivedAt: Date = .distantPast
     private var audioLevelTimer: Timer?
     private var youTubeAudioSnapshot: YouTubePauseController.SystemAudioSnapshot?
@@ -27,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var savedFocusElement: AXUIElement?
 
     func applicationWillTerminate(_ notification: Notification) {
+        pendingRecordingStopTask?.cancel()
+        pendingRecordingStopTask = nil
         youTubePauseController.restoreSystemAudioIfNeeded(youTubeAudioSnapshot)
         youTubeAudioSnapshot = nil
         recordingSessionID = nil
@@ -43,9 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         DebugLog.write("app launched")
+        BrowserPauseBridge.shared.start()
         YouTubePauseController.restorePendingMuteOnLaunchIfNeeded()
         statusMenu = StatusMenuController { [weak self] in
             self?.toggleRecording(source: "menu")
+        } restartAction: { [weak self] in
+            self?.restartApplication()
         } openAccessibilitySettings: {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
         } openGroqAPIKeyPage: {
@@ -78,6 +84,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         requestAccessibilityPermissionIfNeeded()
         requestMicrophonePermission()
         showGroqAPIKeyOnboardingIfNeeded()
+    }
+
+    private func restartApplication() {
+        let command = RelaunchCommand.afterTerminating(
+            processID: ProcessInfo.processInfo.processIdentifier,
+            applicationURL: Bundle.main.bundleURL
+        )
+        let process = Process()
+        process.executableURL = command.executableURL
+        process.arguments = command.arguments
+        do {
+            try process.run()
+            DebugLog.write("restart requested")
+            NSApp.terminate(nil)
+        } catch {
+            DebugLog.write("restart failed error=\(error.localizedDescription)")
+            let alert = NSAlert()
+            alert.messageText = "再起動できませんでした"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+        }
     }
 
     private func showGroqAPIKeyOnboardingIfNeeded() {
@@ -278,6 +305,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func processToggle(source: String) {
         DebugLog.write("toggle source=\(source) isRecording=\(isRecording) isStarting=\(isStartingRecording) convMode=\(conversationMode)")
+        guard pendingRecordingStopTask == nil else {
+            DebugLog.write("toggle ignored while recording tail is being captured source=\(source)")
+            return
+        }
         // Karabiner遅延保護：会話モードON直後0.6s以内のFnイベントは無視
         let isFnEvent = source == "fn-long-press" || isFnTapSource(source)
         if isFnEvent && conversationMode && Date().timeIntervalSince(conversationModeEnteredAt) < 0.6 {
@@ -425,6 +456,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let notifiedTabs = BrowserPauseBridge.shared.broadcastPause()
+        DebugLog.write("browser bridge pause broadcast tabs=\(notifiedTabs)")
         DebugLog.write("youtube pause prepare async begin session=\(sessionID.uuidString)")
         DispatchQueue.global(qos: .userInitiated).async {
             let snapshot = YouTubePauseController().prepareYouTubeBeforeRecording()
@@ -450,6 +483,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func finishRecording(source: String) {
+        let tailSeconds = RecordingStopPresentation.recordingTailSeconds(stopSource: source)
+        if tailSeconds > 0 {
+            guard pendingRecordingStopTask == nil else { return }
+            stopAudioLevelUpdates()
+            isRecording = false
+            hotkeyController?.setRecordingActive(false)
+            DebugLog.write(String(format: "finishRecording tail begin source=%@ seconds=%.2f", source, tailSeconds))
+            pendingRecordingStopTask = Task { @MainActor [weak self] in
+                let startedAt = ProcessInfo.processInfo.systemUptime
+                var tail = RecordingTailPolicy()
+                while !Task.isCancelled {
+                    guard let self else { return }
+                    let level = self.recorder.normalizedAudioLevel()
+                    self.maxRecordingLevel = max(self.maxRecordingLevel, level)
+                    self.overlay.updateRecordingLevel(level)
+                    let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
+                    if tail.shouldStop(elapsed: elapsed, level: level) {
+                        DebugLog.write(String(format: "finishRecording tail end elapsed=%.2f", elapsed))
+                        break
+                    }
+                    do {
+                        try await Task.sleep(nanoseconds: 25_000_000)
+                    } catch {
+                        return
+                    }
+                }
+                guard !Task.isCancelled, let self else { return }
+                self.pendingRecordingStopTask = nil
+                self.completeFinishRecording(source: source)
+            }
+            return
+        }
+        completeFinishRecording(source: source)
+    }
+
+    private func completeFinishRecording(source: String) {
         DebugLog.write("finishRecording requested source=\(source)")
         stopAudioLevelUpdates()
         let recordingLevel = maxRecordingLevel
@@ -537,8 +606,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let cleanup: any CleanupProvider = FillerRemovalCleanupProvider()
             DebugLog.write("cleanup provider=rule-based-filler-removal")
             let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: cleanup)
+            let trimmed = (try? LeadingSilenceTrimmer().trimIfNeeded(audioFileURL: audioURL)) ?? (url: audioURL, trimmedSeconds: 0)
+            defer {
+                if trimmed.url != audioURL {
+                    try? FileManager.default.removeItem(at: trimmed.url)
+                }
+            }
+            DebugLog.write(String(format: "leadingSilence trimmed=%.2f", trimmed.trimmedSeconds))
             DebugLog.write("process transcription begin")
-            let result = try await pipeline.run(audioFileURL: audioURL, profile: profile)
+            let result = try await pipeline.run(audioFileURL: trimmed.url, profile: profile)
             DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")
             if emptyGuard.shouldSuppressTranscript(result.rawTranscript, activity: activity)
                 || emptyGuard.shouldSuppressTranscript(result.finalText, activity: activity) {

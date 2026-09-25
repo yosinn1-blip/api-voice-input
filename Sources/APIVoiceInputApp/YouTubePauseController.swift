@@ -28,8 +28,11 @@ struct YouTubePauseController {
             return nil
         }
 
+        // MediaRemote は「再生元が対象ブラウザだ」と確認できたときだけの近道。
+        // 確認が取れない場合は必ず下の AppleScript タブ巡回（実効性のある正規ルート）へ進む。
         for target in targets {
             if Self.tryMediaRemotePause(for: target, reason: "fast-preflight") {
+                DebugLog.write("youtube pause handled by media-remote browser=\(target.name) skipping tab scan")
                 return nil
             }
         }
@@ -37,8 +40,13 @@ struct YouTubePauseController {
         var audioSnapshot: SystemAudioSnapshot?
         for target in targets {
             let script = Self.pauseScript(for: target)
+            let startedAt = Date()
             let result = Self.runAppleScript(script)
-            DebugLog.write("youtube pause browser=\(target.name) status=\(result.status) output=\(result.output)")
+            let elapsed = Date().timeIntervalSince(startedAt)
+            DebugLog.write(String(
+                format: "youtube pause browser=%@ status=%d elapsed=%.2fs output=%@",
+                target.name, result.status, elapsed, result.output
+            ))
             if audioSnapshot == nil && YouTubePauseFallbackDecision.fallbackAction(scriptOutput: result.output) == .tryMediaRemotePause {
                 let didPause = Self.tryMediaRemotePause(for: target, reason: "apple-script-fallback")
                 if didPause == false {
@@ -79,96 +87,33 @@ struct YouTubePauseController {
     private static func pauseScript(for target: BrowserTarget) -> String {
         switch target.scriptKind {
         case .chromium:
-            return chromiumPauseScript(bundleIdentifier: target.bundleIdentifier)
+            return YouTubePauseScript.chromium(bundleIdentifier: target.bundleIdentifier)
         case .safari:
-            return safariPauseScript(bundleIdentifier: target.bundleIdentifier)
+            return YouTubePauseScript.safari(bundleIdentifier: target.bundleIdentifier)
         }
-    }
-
-    private static func chromiumPauseScript(bundleIdentifier: String) -> String {
-        """
-        set matchedTabs to 0
-        set pausedVideos to 0
-        set errorCount to 0
-        tell application id "\(bundleIdentifier)"
-            repeat with w in windows
-                repeat with t in tabs of w
-                    try
-                        set tabURL to URL of t as text
-                        if my isYouTubeURL(tabURL) then
-                            set matchedTabs to matchedTabs + 1
-                            try
-                                set jsResult to execute t javascript "(() => { const host = location.hostname.toLowerCase(); if (!(host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com'))) return 0; let count = 0; for (const video of document.querySelectorAll('video')) { if (!video.paused) { video.pause(); count += 1; } } return count; })();"
-                                try
-                                    set pausedVideos to pausedVideos + (jsResult as integer)
-                                end try
-                            on error
-                                set errorCount to errorCount + 1
-                            end try
-                        end if
-                    end try
-                end repeat
-            end repeat
-        end tell
-        return "tabs=" & (matchedTabs as text) & " pausedVideos=" & (pausedVideos as text) & " errors=" & (errorCount as text)
-
-        on isYouTubeURL(tabURL)
-            return tabURL starts with "https://youtube.com/" or tabURL starts with "http://youtube.com/" or tabURL starts with "https://www.youtube.com/" or tabURL starts with "http://www.youtube.com/" or tabURL starts with "https://m.youtube.com/" or tabURL starts with "http://m.youtube.com/" or tabURL starts with "https://music.youtube.com/" or tabURL starts with "http://music.youtube.com/" or tabURL starts with "https://youtu.be/" or tabURL starts with "http://youtu.be/"
-        end isYouTubeURL
-        """
-    }
-
-    private static func safariPauseScript(bundleIdentifier: String) -> String {
-        """
-        set matchedTabs to 0
-        set pausedVideos to 0
-        set errorCount to 0
-        tell application id "\(bundleIdentifier)"
-            repeat with w in windows
-                repeat with t in tabs of w
-                    try
-                        set tabURL to URL of t as text
-                        if my isYouTubeURL(tabURL) then
-                            set matchedTabs to matchedTabs + 1
-                            try
-                                set jsResult to do JavaScript "(() => { const host = location.hostname.toLowerCase(); if (!(host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com'))) return 0; let count = 0; for (const video of document.querySelectorAll('video')) { if (!video.paused) { video.pause(); count += 1; } } return count; })();" in t
-                                try
-                                    set pausedVideos to pausedVideos + (jsResult as integer)
-                                end try
-                            on error
-                                set errorCount to errorCount + 1
-                            end try
-                        end if
-                    end try
-                end repeat
-            end repeat
-        end tell
-        return "tabs=" & (matchedTabs as text) & " pausedVideos=" & (pausedVideos as text) & " errors=" & (errorCount as text)
-
-        on isYouTubeURL(tabURL)
-            return tabURL starts with "https://youtube.com/" or tabURL starts with "http://youtube.com/" or tabURL starts with "https://www.youtube.com/" or tabURL starts with "http://www.youtube.com/" or tabURL starts with "https://m.youtube.com/" or tabURL starts with "http://m.youtube.com/" or tabURL starts with "https://music.youtube.com/" or tabURL starts with "http://music.youtube.com/" or tabURL starts with "https://youtu.be/" or tabURL starts with "http://youtu.be/"
-        end isYouTubeURL
-        """
     }
 
     private static func tryMediaRemotePause(for target: BrowserTarget, reason: String) -> Bool {
         let controller = MediaRemotePauseController()
         let snapshot = controller.snapshot()
         DebugLog.write("youtube pause media-remote reason=\(reason) snapshot displayID=\(snapshot.displayID ?? "nil") isPlaying=\(snapshot.isPlaying.map(String.init) ?? "nil") target=\(target.bundleIdentifier)")
-        let shouldSendPause = snapshot.displayID == target.bundleIdentifier || snapshot.displayID == nil
+        let shouldSendPause = MediaRemotePauseSendDecision.shouldSendPause(
+            snapshotDisplayID: snapshot.displayID,
+            targetDisplayID: target.bundleIdentifier
+        )
         guard shouldSendPause else {
             DebugLog.write("youtube pause media-remote-pause skipped reason=\(reason) browser=\(target.name) guardedDisplayID=\(snapshot.displayID ?? "nil")")
             return false
         }
         let sent = controller.sendPause()
-        let confirmed = MediaRemotePauseSuccessDecision.isConfirmedPause(
+        let handled = MediaRemotePauseHandlingDecision.isHandledPause(
             sent: sent,
             snapshotDisplayID: snapshot.displayID,
             snapshotIsPlaying: snapshot.isPlaying,
             targetDisplayID: target.bundleIdentifier
         )
-        DebugLog.write("youtube pause media-remote-pause reason=\(reason) browser=\(target.name) sent=\(sent) confirmed=\(confirmed) guardedDisplayID=\(snapshot.displayID ?? "nil")")
-        return confirmed
+        DebugLog.write("youtube pause media-remote-pause reason=\(reason) browser=\(target.name) sent=\(sent) handled=\(handled) guardedDisplayID=\(snapshot.displayID ?? "nil")")
+        return handled
     }
 
     private static func muteSystemOutput() -> SystemAudioSnapshot? {

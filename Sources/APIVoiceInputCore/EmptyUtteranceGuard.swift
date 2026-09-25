@@ -17,22 +17,37 @@ public struct EmptyUtteranceGuard: Sendable {
 
     public func shouldSuppressTranscript(_ transcript: String, activity: AudioActivitySummary) -> Bool {
         let normalized = Self.normalize(transcript)
-        guard Self.commonSilenceHallucinations.contains(normalized) else {
+        guard Self.commonSilenceHallucinations.contains(normalized)
+            || Self.isVideoTemplateHallucination(normalized) else {
             return false
         }
         // Peak is deliberately excluded: transient background noise (AC, keyboard) can spike peak
-        // above -18 dBFS even with no speech, causing false negatives. RMS alone reliably
-        // distinguishes silence from actual voice.
+        // above -18 dBFS even with no speech. Quiet RMS is only a supporting signal,
+        // not proof of silence: suppress only a narrowly matched known template.
         return activity.rmsDBFS < Self.quietHallucinationRMSDBFS
     }
 
-    private static let commonSilenceHallucinations: Set<String> = [
+    /// Match the entire reported video boilerplate, never a substring of a real request.
+    /// Keep the audio-level gate so an actively dictated video introduction is preserved.
+    private static func isVideoTemplateHallucination(_ text: String) -> Bool {
+        let compact = text.components(separatedBy: .whitespacesAndNewlines).joined()
+        let pattern = #"^この動画は(?:githubの)*動画をご覧いただき(?:ありがとうございます|ありがとうございました)?$"#
+        return compact.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private static let baseSilenceHallucinations: [String] = [
         // 感謝系
         "ありがとうございました",
         "ありがとうございます",
-        "ありがとうございました",
+        "ご視聴ありがとうございましたです",
         "ご視聴ありがとうございました",
         "ご視聴ありがとうございます",
+        "ご視聴ありがとう",
+        "ご視聴",
+        "ごちそうさまでした",
+        "ごちそうさま",
+        "ごちしょう",
+        "ごちそう",
         "ご清聴ありがとうございました",
         "ご清聴ありがとうございます",
         "ご覧いただきありがとうございました",
@@ -54,6 +69,19 @@ public struct EmptyUtteranceGuard: Sendable {
         "次回もよろしくお願いします",
         "よろしくお願いいたします"
     ]
+
+    /// Exact-match set used only for quiet/silence audio. Includes concatenated pairs of
+    /// known closings so stacked Whisper outros ("ごちしょうありがとうございました")
+    /// are suppressed without treating them as real speech.
+    private static let commonSilenceHallucinations: Set<String> = {
+        var set = Set(baseSilenceHallucinations)
+        for first in baseSilenceHallucinations {
+            for second in baseSilenceHallucinations {
+                set.insert(first + second)
+            }
+        }
+        return set
+    }()
 
     private static func normalize(_ text: String) -> String {
         text

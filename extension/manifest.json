@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "API音声ソフト 動画ポーズ",
+  "version": "1.3",
+  "description": "音声入力の録音が始まったとき、このタブで再生中の動画を一時停止します。",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*",
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "https://www.youtube.com/*",
+    "https://m.youtube.com/*",
+    "https://music.youtube.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "scripting"
+  ]
+}
