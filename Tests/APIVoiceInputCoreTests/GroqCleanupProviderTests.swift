@@ -14,10 +14,37 @@ final class GroqCleanupProviderTests: XCTestCase {
         XCTAssertEqual(client.requests[0].url.absoluteString, "https://api.groq.com/openai/v1/chat/completions")
         XCTAssertEqual(client.requests[0].headers["Authorization"], "Bearer groq-key")
         let json = try JSONSerialization.jsonObject(with: client.requests[0].body) as? [String: Any]
-        XCTAssertEqual(json?["model"] as? String, "llama-3.3-70b-versatile")
+        XCTAssertEqual(json?["model"] as? String, "openai/gpt-oss-120b")
         let messages = json?["messages"] as? [[String: String]]
         XCTAssertEqual(messages?[0]["content"], "自然に整えて")
         XCTAssertEqual(messages?[1]["content"], "<transcription>えー今日はテストです</transcription>")
+    }
+
+    func testGroqProviderIDNamesTheModelFamily() {
+        let provider = GroqCleanupProvider(apiKey: "groq-key", httpClient: MockHTTPClient(response: HTTPResponse(statusCode: 200, data: Data())))
+
+        XCTAssertEqual(provider.id, "groq-gpt-oss-120b")
+    }
+
+    func testGroqProviderRequestsLowReasoningWithoutReasoningOutput() async throws {
+        let client = MockHTTPClient(response: HTTPResponse(statusCode: 200, data: Data(#"{"choices":[{"message":{"role":"assistant","content":"ok"}}]}"#.utf8)))
+        let provider = GroqCleanupProvider(apiKey: "groq-key", httpClient: client)
+
+        _ = try await provider.clean(transcript: "えー今日はテストです", prompt: "自然に整えて")
+
+        let json = try JSONSerialization.jsonObject(with: client.requests[0].body) as? [String: Any]
+        XCTAssertEqual(json?["reasoning_effort"] as? String, "low")
+        XCTAssertEqual(json?["include_reasoning"] as? Bool, false)
+    }
+
+    func testGroqProviderGivesShortTranscriptRoomForReasoningTokens() async throws {
+        let client = MockHTTPClient(response: HTTPResponse(statusCode: 200, data: Data(#"{"choices":[{"message":{"role":"assistant","content":"ok"}}]}"#.utf8)))
+        let provider = GroqCleanupProvider(apiKey: "groq-key", httpClient: client)
+
+        _ = try await provider.clean(transcript: "えー今日はテストです", prompt: "自然に整えて")
+
+        let json = try JSONSerialization.jsonObject(with: client.requests[0].body) as? [String: Any]
+        XCTAssertEqual(json?["max_tokens"] as? Int, 256)
     }
 
     func testGroqProviderMaps429ToRateLimit() async throws {
