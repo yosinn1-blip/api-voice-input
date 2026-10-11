@@ -416,7 +416,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let element {
             AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
         }
-        DebugLog.write("restoreFocus app=\(app.localizedName ?? "?") element=\(element != nil ? "ok" : "nil")")
+        DebugLog.write("restoreFocus app=\(app.localizedName ?? "?") element=\(element != nil ? "ok" : "nil") frontmostAfter=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "nil")")
     }
 
     private func startRecording(source: String) {
@@ -632,6 +632,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 overlay.show(.failed, detail: "アクセシビリティ権限が必要・文字はクリップボード")
                 return
             }
+            await ForeignMenuDismisser.dismissIfNeeded()
             if showPopup {
                 await restoreFocusIfNeeded()
             }
