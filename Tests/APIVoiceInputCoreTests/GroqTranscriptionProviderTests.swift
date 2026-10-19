@@ -17,21 +17,6 @@ final class GroqTranscriptionProviderTests: XCTestCase {
         XCTAssertEqual(GroqTranscriptionProvider.resolvedLanguage(from: "en"), "en")
     }
 
-    func testTranscriptionPromptBiasesConversationalJapaneseAndOmitsOutroSeeds() {
-        let prompt = GroqTranscriptionProvider.transcriptionPrompt
-        XCTAssertFalse(prompt.contains("日本語"), "The language multipart field already pins Japanese")
-        XCTAssertFalse(prompt.contains("書き起こし"), "Whisper may copy instruction wording into the transcript")
-        XCTAssertFalse(prompt.contains("定型文は付けない"), "Whisper may copy instruction wording into the transcript")
-        XCTAssertFalse(prompt.contains("ご視聴ありがとうございました"))
-        XCTAssertFalse(prompt.contains("ご視聴ありがとうございましたです"))
-        XCTAssertFalse(prompt.contains("音声ソフト"))
-        XCTAssertFalse(prompt.contains("API音声ソフト"))
-        XCTAssertFalse(prompt.contains("字幕"), "Whisper may copy prompt wording into the transcript")
-        for noun in ["Codex", "Claude", "ChatGPT", "Gemini", "YouTube", "GitHub", "Swift", "Xcode", "API"] {
-            XCTAssertTrue(prompt.contains(noun), "missing proper-noun hint: \(noun)")
-        }
-    }
-
     func testGroqProviderParsesTextResponse() async throws {
         let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("groq-test.wav")
         try Data("audio".utf8).write(to: audioURL)
@@ -51,7 +36,7 @@ final class GroqTranscriptionProviderTests: XCTestCase {
         XCTAssertTrue(bodyText.contains("ja"))
         XCTAssertTrue(bodyText.contains("name=\"temperature\""))
         XCTAssertTrue(bodyText.contains(GroqTranscriptionProvider.temperature))
-        XCTAssertTrue(bodyText.contains(GroqTranscriptionProvider.transcriptionPrompt))
+        XCTAssertFalse(bodyText.contains("name=\"prompt\""))
         XCTAssertFalse(bodyText.contains("音声ソフト"))
     }
 
@@ -67,24 +52,21 @@ final class GroqTranscriptionProviderTests: XCTestCase {
         XCTAssertTrue(bodyText.contains("name=\"language\"\r\n\r\nja\r\n"))
     }
 
-    func testGroqProviderSendsPromptOnlyForJapanese() async throws {
+    /// 2026-09-27 実測: 固有名詞ヒントを prompt に付けると、30秒を超える録音で後半が
+    /// 「ご視聴ありがとうございました」に置き換わり語尾ごと消えた（66秒録音で49〜66秒が消失、
+    /// 付けなければ全区間とも最後まで認識）。日本語・英語とも prompt は送らない。
+    func testGroqProviderSendsNoPrompt() async throws {
         let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("groq-prompt-lang.wav")
         try Data("audio".utf8).write(to: audioURL)
 
-        let japaneseClient = MockHTTPClient(response: HTTPResponse(statusCode: 200, data: Data(#"{"text":"テスト"}"#.utf8)))
-        _ = try await GroqTranscriptionProvider(apiKey: "test-key", httpClient: japaneseClient)
-            .transcribe(audioFileURL: audioURL, languageHint: "ja")
-        let japaneseBody = String(data: japaneseClient.requests[0].body, encoding: .utf8) ?? ""
-        XCTAssertTrue(japaneseBody.contains("name=\"prompt\""))
-        XCTAssertTrue(japaneseBody.contains(GroqTranscriptionProvider.transcriptionPrompt))
-
-        let englishClient = MockHTTPClient(response: HTTPResponse(statusCode: 200, data: Data(#"{"text":"test"}"#.utf8)))
-        _ = try await GroqTranscriptionProvider(apiKey: "test-key", httpClient: englishClient)
-            .transcribe(audioFileURL: audioURL, languageHint: "en")
-        let englishBody = String(data: englishClient.requests[0].body, encoding: .utf8) ?? ""
-        XCTAssertTrue(englishBody.contains("name=\"language\"\r\n\r\nen\r\n"))
-        XCTAssertFalse(englishBody.contains("name=\"prompt\""))
-        XCTAssertFalse(englishBody.contains(GroqTranscriptionProvider.transcriptionPrompt))
+        for hint in ["ja", "en"] {
+            let client = MockHTTPClient(response: HTTPResponse(statusCode: 200, data: Data(#"{"text":"テスト"}"#.utf8)))
+            _ = try await GroqTranscriptionProvider(apiKey: "test-key", httpClient: client)
+                .transcribe(audioFileURL: audioURL, languageHint: hint)
+            let body = String(data: client.requests[0].body, encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains("name=\"language\"\r\n\r\n\(hint)\r\n"))
+            XCTAssertFalse(body.contains("name=\"prompt\""), "prompt sent for \(hint)")
+        }
     }
 
     func testGroqProviderMaps429ToRateLimit() async throws {
