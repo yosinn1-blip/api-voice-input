@@ -18,7 +18,7 @@ public struct ReplacementResult: Equatable, Sendable {
 /// 置き換えた結果はもう一度置き換えない。ファイルが無い・読めない・0件のときは何もしない。
 /// ファイルの更新日時が変わったときだけ読み直す。
 public final class ReplacementDictionary: @unchecked Sendable {
-    private struct Entry {
+    struct Entry: Equatable {
         let wrong: String
         let correct: String
     }
@@ -57,17 +57,60 @@ public final class ReplacementDictionary: @unchecked Sendable {
         }
     }
 
-    static let sampleContents = [
-        "# API音声ソフト 置き換え辞書",
-        "# 書き方: 「誤り」と「正しい語」を Tab キーで区切って、1行に1つ書きます。",
-        "# 先頭が # の行と空行は無視されます。長い「誤り」が先に使われます。",
-        "# 保存すると、次に話したときから反映されます（再起動は不要です）。",
-        "グロック\tGroq",
-        "ソニオックス\tSoniox",
-        "クロードコード\tClaude Code",
-        "ギットハブ\tGitHub",
-        ""
-    ].joined(separator: "\n")
+    /// 初回に作る辞書の中身。下の初期登録は、実際の発話（約2,200件）で崩れていた語や、
+    /// 正式表記が英字の製品名から選んだ。長い「誤り」が先に使われるので、
+    /// 「グロックボット」（Grok Bot）が「グロック」（Groq）より先に直る。
+    static let sampleContents: String = {
+        let header = [
+            "# API音声ソフト 置き換え辞書",
+            "# 書き方: 「誤り」と「正しい語」を Tab キーで区切って、1行に1つ書きます。",
+            "# 先頭が # の行と空行は無視されます。長い「誤り」が先に使われます。",
+            "# 保存すると、次に話したときから反映されます（再起動は不要です）。",
+            "# 使いながら覚えた語は、別のファイル dictionary-auto.txt に自動で足されます。",
+            "#",
+            "# ここから下は、AI・開発まわりで崩れやすい語の初期登録です。いらない行は消してください。"
+        ]
+        let entries: [(wrong: String, correct: String)] = [
+            ("グロック", "Groq"),
+            ("グロッグ", "Groq"),
+            ("グロックボット", "Grok Bot"),
+            ("グロッグボット", "Grok Bot"),
+            ("グログボット", "Grok Bot"),
+            ("ソニオックス", "Soniox"),
+            ("ソニョックス", "Soniox"),
+            ("SonyOx", "Soniox"),
+            ("クロードコード", "Claude Code"),
+            ("クロード", "Claude"),
+            ("コーデックス", "Codex"),
+            ("ギットハブ", "GitHub"),
+            ("オブシリアン", "Obsidian"),
+            ("オブシディアン", "Obsidian"),
+            ("オープンコード", "OpenCode"),
+            ("オープンクロー", "OpenClaw"),
+            ("オープンルーター", "OpenRouter"),
+            ("クラウドフレア", "Cloudflare"),
+            ("スパベース", "Supabase"),
+            ("スパブエース", "Supabase"),
+            ("スーパーベース", "Supabase"),
+            ("ショピファイ", "Shopify"),
+            ("ショーピーファイ", "Shopify"),
+            ("カーサー", "Cursor"),
+            ("ジェミニー", "Gemini"),
+            ("ジェミニ", "Gemini"),
+            ("ナノバナナ", "Nano Banana"),
+            ("ワンパスワード", "1Password"),
+            ("コンピュータユーズ", "Computer Use"),
+            ("オーパス", "Opus"),
+            ("アンリアルエンジン", "Unreal Engine"),
+            ("アンリアル", "Unreal"),
+            ("ロブロックス", "Roblox"),
+            ("マックミニ", "Mac mini"),
+            ("グーグルクローム", "Google Chrome"),
+            ("グーグル", "Google"),
+            ("クローム", "Chrome")
+        ]
+        return (header + entries.map { "\($0.wrong)\t\($0.correct)" } + [""]).joined(separator: "\n")
+    }()
 
     private func currentEntries() -> [Entry] {
         lock.withLock {
@@ -94,7 +137,7 @@ public final class ReplacementDictionary: @unchecked Sendable {
         return attributes?[.modificationDate] as? Date
     }
 
-    private static func parse(_ contents: String) -> [Entry] {
+    static func parse(_ contents: String) -> [Entry] {
         let text = contents.hasPrefix("\u{FEFF}") ? String(contents.dropFirst()) : contents
         var entries: [Entry] = []
         for rawLine in text.components(separatedBy: .newlines) {

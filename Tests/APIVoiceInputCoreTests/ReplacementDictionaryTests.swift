@@ -211,6 +211,42 @@ final class ReplacementDictionaryTests: XCTestCase {
         XCTAssertEqual(firstLine?.first, "#")
     }
 
+    func testSampleFileFixesTermsThatBrokeInPastDictations() throws {
+        let dictionary = try makeReplacementDictionary(ReplacementDictionary.sampleContents)
+        let cases: [(input: String, expected: String)] = [
+            ("コーデックスで直してもらう", "Codexで直してもらう"),
+            ("クロードコードとクロード", "Claude CodeとClaude"),
+            ("オブシリアンにメモする", "Obsidianにメモする"),
+            ("オープンコードとオープンルーター", "OpenCodeとOpenRouter"),
+            ("ソニョックスとSonyOx", "SonioxとSoniox"),
+            ("スパブエースとショピファイ", "SupabaseとShopify"),
+            ("アンリアルエンジンとロブロックス", "Unreal EngineとRoblox")
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(dictionary.apply(to: testCase.input).text, testCase.expected, testCase.input)
+        }
+    }
+
+    func testSampleFileKeepsGrokBotApartFromGroq() throws {
+        let dictionary = try makeReplacementDictionary(ReplacementDictionary.sampleContents)
+
+        XCTAssertEqual(dictionary.apply(to: "グロックボットとグロック").text, "Grok BotとGroq")
+        XCTAssertEqual(dictionary.apply(to: "グロッグボットとグロッグ").text, "Grok BotとGroq")
+    }
+
+    func testSampleFileEntriesAreWellFormed() {
+        let entries = ReplacementDictionary.parse(ReplacementDictionary.sampleContents)
+
+        XCTAssertGreaterThanOrEqual(entries.count, 30)
+        XCTAssertEqual(Set(entries.map(\.wrong)).count, entries.count, "同じ誤りが2回書かれている")
+        for entry in entries {
+            XCTAssertGreaterThanOrEqual(entry.wrong.count, 3, "短すぎる誤りは他の語まで壊す: \(entry.wrong)")
+            XCTAssertNotEqual(entry.wrong, entry.correct)
+            XCTAssertTrue(entry.correct.allSatisfy(\.isASCII), "正しい語は英数字: \(entry.correct)")
+        }
+    }
+
     func testDoesNotOverwriteAnExistingFile() throws {
         let custom = try makeReplacementDictionary("自分の語\tMyWord\n")
         XCTAssertFalse(custom.createSampleFileIfNeeded())
