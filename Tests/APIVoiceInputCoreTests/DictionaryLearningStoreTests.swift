@@ -23,6 +23,21 @@ final class DictionaryLearningStoreTests: XCTestCase {
         XCTAssertTrue(contents.contains("# 2026-10-19 自動で追加\nオブシリアン\tObsidian\n"), contents)
     }
 
+    func testAppendReportsWhetherItReallyWrote() throws {
+        let store = try makeStore()
+        XCTAssertFalse(store.autoDictionaryExists)
+        XCTAssertTrue(store.appendEntries([TermSuggestion(wrong: "オブシリアン", correct: "Obsidian")], date: noon))
+        XCTAssertTrue(store.autoDictionaryExists)
+
+        let directory = try makeTemporaryDirectory()
+        try Data("x".utf8).write(to: directory.appendingPathComponent("blocked"))
+        let blockedStore = DictionaryLearningStore(
+            autoDictionaryURL: directory.appendingPathComponent("blocked").appendingPathComponent("dictionary-auto.txt"),
+            stateURL: directory.appendingPathComponent("state.json")
+        )
+        XCTAssertFalse(blockedStore.appendEntries([TermSuggestion(wrong: "オブシリアン", correct: "Obsidian")], date: noon))
+    }
+
     func testAppendKeepsEarlierEntriesAndWritesTheHeaderOnce() throws {
         let store = try makeStore()
 

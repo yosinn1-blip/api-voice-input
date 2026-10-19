@@ -22,6 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             stateURL: AppSettings.learningStateFileURL
         ),
         providerFactory: { APIKeyStore.loadGroqAPIKey().map { GroqTermSuggestionProvider(apiKey: $0) } },
+        isEnabled: {
+            UserDefaults.standard.object(forKey: AppSettings.dictionaryLearningEnabledKey) as? Bool
+                ?? AppSettings.dictionaryLearningDefaultEnabled
+        },
         log: { DebugLog.write($0) }
     )
     private let youTubePauseController = YouTubePauseController()

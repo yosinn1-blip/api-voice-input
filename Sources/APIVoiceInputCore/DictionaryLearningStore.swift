@@ -72,32 +72,46 @@ public final class DictionaryLearningStore: Sendable {
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: stateURL.path)
     }
 
+    public var autoDictionaryExists: Bool {
+        FileManager.default.fileExists(atPath: autoDictionaryURL.path)
+    }
+
     /// 自動辞書に足す。ファイルが無ければ見出しつきで作り、あれば末尾に足す（既存の行は触らない）。
-    public func appendEntries(_ entries: [TermSuggestion], date: Date) {
-        guard entries.isEmpty == false else { return }
+    /// 書けたときだけ true（書けなかった語を「覚えた」ことにしないため）。
+    @discardableResult
+    public func appendEntries(_ entries: [TermSuggestion], date: Date) -> Bool {
+        guard entries.isEmpty == false else { return true }
         let fileManager = FileManager.default
-        try? fileManager.createDirectory(
-            at: autoDictionaryURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+        do {
+            try fileManager.createDirectory(
+                at: autoDictionaryURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+        } catch {
+            return false
+        }
         let stamp = Self.dayString(date)
         let lines = entries.map { "# \(stamp) 自動で追加\n\($0.wrong)\t\($0.correct)\n" }.joined()
 
-        guard fileManager.fileExists(atPath: autoDictionaryURL.path) else {
-            fileManager.createFile(
+        guard autoDictionaryExists else {
+            return fileManager.createFile(
                 atPath: autoDictionaryURL.path,
                 contents: Data((Self.header + lines).utf8),
                 attributes: [.posixPermissions: 0o600]
             )
-            return
         }
         // 手で編集されて最後の改行が無くなっていても、行が混ざらないようにする。
         let existing = (try? Data(contentsOf: autoDictionaryURL)) ?? Data()
         let separator = existing.last == 0x0A || existing.isEmpty ? "" : "\n"
-        guard let handle = try? FileHandle(forWritingTo: autoDictionaryURL) else { return }
-        defer { try? handle.close() }
-        _ = try? handle.seekToEnd()
-        try? handle.write(contentsOf: Data((separator + lines).utf8))
+        do {
+            let handle = try FileHandle(forWritingTo: autoDictionaryURL)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data((separator + lines).utf8))
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// 自動辞書の中身。ファイルが無ければ空、あるのに読めなければ nil。

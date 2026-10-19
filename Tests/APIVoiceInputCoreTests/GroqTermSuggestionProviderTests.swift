@@ -126,6 +126,34 @@ final class GroqTermSuggestionProviderTests: XCTestCase {
         }
     }
 
+    func testMapsRefusedRequestsToRequestRejected() async throws {
+        for status in [400, 401, 403, 404, 413] {
+            let provider = GroqTermSuggestionProvider(
+                apiKey: "k",
+                httpClient: MockHTTPClient(response: HTTPResponse(statusCode: status, data: Data()))
+            )
+            do {
+                _ = try await provider.suggest(texts: ["x"], knownTerms: [])
+                XCTFail("Expected rejection: \(status)")
+            } catch TermSuggestionError.requestRejected {
+            }
+        }
+    }
+
+    func testTreatsServerTroubleAndTimeoutsAsTemporaryFailures() async throws {
+        for status in [408, 500, 502, 503] {
+            let provider = GroqTermSuggestionProvider(
+                apiKey: "k",
+                httpClient: MockHTTPClient(response: HTTPResponse(statusCode: status, data: Data()))
+            )
+            do {
+                _ = try await provider.suggest(texts: ["x"], knownTerms: [])
+                XCTFail("Expected failure: \(status)")
+            } catch VoiceInputError.providerFailed {
+            }
+        }
+    }
+
     func testThrowsWhenTheAnswerCannotBeRead() async throws {
         for content in ["これはJSONではありません", #"{"result":"ok"}"#, ""] {
             let provider = GroqTermSuggestionProvider(apiKey: "k", httpClient: MockHTTPClient(response: reply(content)))

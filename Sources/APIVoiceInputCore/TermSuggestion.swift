@@ -28,9 +28,12 @@ public protocol TermSuggestionProvider: Sendable {
 public enum TermSuggestionError: Error, Equatable, Sendable {
     /// 答えを読み取れなかった（形式が違う）
     case unreadableResponse
+    /// 問い合わせそのものを断られた（鍵が違う・モデルが無い・大きすぎる等。同じ内容を送り直しても通らない）
+    case requestRejected
 }
 
-public enum TermSuggestionRejection: Equatable, Sendable {
+/// 足してはいけない理由。名前はログの集計（件数だけ）にそのまま使う。
+public enum TermSuggestionRejection: String, Equatable, Sendable {
     case empty
     case noRealChange
     case badCorrect
@@ -92,7 +95,7 @@ public enum TermSuggestionFilter {
     }
 
     /// 正しい語: 半角の英数字（間に空白・.+-_ は可）で、前後は英数字。例: Groq, Claude Code, 1Password
-    private static func isPlainLatinName(_ text: String) -> Bool {
+    static func isPlainLatinName(_ text: String) -> Bool {
         let scalars = Array(text.unicodeScalars)
         guard (2...40).contains(text.count), let first = scalars.first, let last = scalars.last else { return false }
         guard isASCIILetterOrDigit(first), isASCIILetterOrDigit(last) else { return false }

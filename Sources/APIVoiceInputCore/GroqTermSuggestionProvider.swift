@@ -65,6 +65,10 @@ public struct GroqTermSuggestionProvider: TermSuggestionProvider {
         if response.statusCode == 429 {
             throw VoiceInputError.providerRateLimited(id)
         }
+        // 408（時間切れ）と5xxはあとで聞き直せる。それ以外の4xxは、同じ内容を送り直しても通らない。
+        if (400..<500).contains(response.statusCode), response.statusCode != 408 {
+            throw TermSuggestionError.requestRejected
+        }
         guard (200..<300).contains(response.statusCode) else {
             throw VoiceInputError.providerFailed("Groq term suggestion failed with HTTP \(response.statusCode).")
         }

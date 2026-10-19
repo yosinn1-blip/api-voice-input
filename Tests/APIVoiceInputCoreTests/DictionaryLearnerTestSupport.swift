@@ -51,13 +51,19 @@ final class TestSwitch: @unchecked Sendable {
 /// 「普通の語」を決め打ちで答える。
 struct FixedWordChecker: CommonWordChecker {
     let words: Set<String>
+    let usable: Bool
 
-    init(_ words: Set<String> = []) {
+    init(_ words: Set<String> = [], usable: Bool = true) {
         self.words = words
+        self.usable = usable
     }
 
     func isCommonWord(_ word: String) -> Bool {
         words.contains(word)
+    }
+
+    var isUsable: Bool {
+        usable
     }
 }
 
@@ -85,6 +91,7 @@ final class MockTermSuggestionProvider: TermSuggestionProvider, @unchecked Senda
     private let lock = NSLock()
     private var script: [Result<[TermSuggestion], Error>] = []
     private var recorded: [Call] = []
+    private var nextCallHook: (@Sendable () -> Void)?
 
     func enqueue(_ result: Result<[TermSuggestion], Error>) {
         lock.withLock { script.append(result) }
@@ -94,11 +101,19 @@ final class MockTermSuggestionProvider: TermSuggestionProvider, @unchecked Senda
         lock.withLock { recorded }
     }
 
+    /// 次に呼ばれたとき、答える前に一度だけ実行する。
+    func onNextCall(_ hook: @escaping @Sendable () -> Void) {
+        lock.withLock { nextCallHook = hook }
+    }
+
     func suggest(texts: [String], knownTerms: [String]) async throws -> [TermSuggestion] {
-        let next: Result<[TermSuggestion], Error> = lock.withLock {
+        let (next, hook): (Result<[TermSuggestion], Error>, (@Sendable () -> Void)?) = lock.withLock {
             recorded.append(Call(texts: texts, knownTerms: knownTerms))
-            return script.isEmpty ? .success([]) : script.removeFirst()
+            let hook = nextCallHook
+            nextCallHook = nil
+            return (script.isEmpty ? .success([]) : script.removeFirst(), hook)
         }
+        hook?()
         return try next.get()
     }
 }
@@ -113,6 +128,8 @@ struct LearnerFixture {
     let providerAvailable: TestSwitch
     /// 提案係（＝APIキーの読み込み）を用意しにいった回数
     let providerFactoryCalls: TestCounter
+    /// 「使いながら辞書を育てる」のオン/オフ
+    let learningEnabled: TestSwitch
 }
 
 extension XCTestCase {
@@ -121,12 +138,20 @@ extension XCTestCase {
     func makeLearnerFixture(
         manual: String = "",
         commonWords: Set<String> = [],
+        commonWordsUsable: Bool = true,
+        autoDirectoryIsBlocked: Bool = false,
         configure: (inout DictionaryLearner.Configuration) -> Void = { _ in }
     ) throws -> LearnerFixture {
         let directory = try makeTemporaryDirectory()
         let manualURL = directory.appendingPathComponent("dictionary.txt")
         try manual.write(to: manualURL, atomically: true, encoding: .utf8)
-        let autoURL = directory.appendingPathComponent("dictionary-auto.txt")
+        var autoURL = directory.appendingPathComponent("dictionary-auto.txt")
+        if autoDirectoryIsBlocked {
+            // フォルダの場所に普通のファイルを置いて、自動辞書を書けなくする
+            let blocker = directory.appendingPathComponent("blocked")
+            try Data("x".utf8).write(to: blocker)
+            autoURL = blocker.appendingPathComponent("dictionary-auto.txt")
+        }
         let stateURL = directory.appendingPathComponent("dictionary-learning.json")
         let dictionary = ReplacementDictionary(fileURL: manualURL, additionalFileURLs: [autoURL])
         let store = DictionaryLearningStore(autoDictionaryURL: autoURL, stateURL: stateURL)
@@ -135,6 +160,7 @@ extension XCTestCase {
         let log = LogBox()
         let providerAvailable = TestSwitch(true)
         let providerFactoryCalls = TestCounter()
+        let learningEnabled = TestSwitch(true)
         var configuration = DictionaryLearner.Configuration()
         configuration.batchSize = 3
         configuration.maxWait = 600
@@ -147,7 +173,8 @@ extension XCTestCase {
                 providerFactoryCalls.increment()
                 return providerAvailable.isOn ? provider : nil
             },
-            commonWords: FixedWordChecker(commonWords),
+            commonWords: FixedWordChecker(commonWords, usable: commonWordsUsable),
+            isEnabled: { learningEnabled.isOn },
             now: { clock.now() },
             log: { log.append($0) },
             configuration: configuration
@@ -160,7 +187,8 @@ extension XCTestCase {
             clock: clock,
             log: log,
             providerAvailable: providerAvailable,
-            providerFactoryCalls: providerFactoryCalls
+            providerFactoryCalls: providerFactoryCalls,
+            learningEnabled: learningEnabled
         )
     }
 }

@@ -3,7 +3,11 @@ import Foundation
 /// 使いながら辞書を育てる係。貼り付けた文章をためておき、ある程度たまったら裏でAIに読ませて、
 /// 崩れた固有名詞を「自動で覚えた語」のファイルに足す。貼り付けの速さには関わらない。
 ///
-/// 足す条件: 機械的な検査に通り、かつ（同じ組を2回見つけた、または辞書に既にある正しい語の別の崩れ方）。
+/// 誤登録で発話が壊れるのが一番の害なので、足す条件は厳しい:
+/// - 機械的な検査（TermSuggestionFilter）を通ったものだけ
+/// - 別々の問い合わせで2回見つけたとき（同じ問い合わせの中の2文では1回と数える）。
+///   ただし、辞書にある誤りと1文字違いの崩れ方で、AIも確信しているときは1回で足す
+/// - 同じ誤りに別々の正しい語が競っているときは足さない
 /// 文章はメモリにしか置かず、ログにも出さない（件数だけ）。
 public actor DictionaryLearner {
     public struct Configuration: Sendable {
@@ -17,6 +21,8 @@ public actor DictionaryLearner {
         public var minimumTextLength = 6
         public var maxRequestsPerDay = 40
         public var maxPromotionsPerDay = 10
+        /// 自動辞書に溜める語の上限（置き換えが遅くならないように）
+        public var maxLearnedEntries = 300
         /// 失敗したあと、次に聞くまで待つ秒数
         public var retryAfterFailure: TimeInterval = 15 * 60
 
@@ -27,6 +33,7 @@ public actor DictionaryLearner {
     private let store: DictionaryLearningStore
     private let providerFactory: @Sendable () -> (any TermSuggestionProvider)?
     private let commonWords: any CommonWordChecker
+    private let isEnabled: @Sendable () -> Bool
     private let now: @Sendable () -> Date
     private let log: @Sendable (String) -> Void
     private let configuration: Configuration
@@ -35,13 +42,16 @@ public actor DictionaryLearner {
     private var queuedSince: Date?
     private var retryNotBefore = Date.distantPast
     private var isAsking = false
+    private var hasLoggedPause = false
 
     /// `providerFactory` は、聞く直前に呼ぶ。APIキーが無いときは nil を返す（たまった文章はそのまま残る）。
+    /// `isEnabled` は「使いながら辞書を育てる」がオンかを、その時々に答える。オフの間は何もためない・送らない。
     public init(
         dictionary: ReplacementDictionary,
         store: DictionaryLearningStore,
         providerFactory: @escaping @Sendable () -> (any TermSuggestionProvider)?,
         commonWords: any CommonWordChecker = SystemDictionaryWordChecker(),
+        isEnabled: @escaping @Sendable () -> Bool = { true },
         now: @escaping @Sendable () -> Date = { Date() },
         log: @escaping @Sendable (String) -> Void = { _ in },
         configuration: Configuration = Configuration()
@@ -50,6 +60,7 @@ public actor DictionaryLearner {
         self.store = store
         self.providerFactory = providerFactory
         self.commonWords = commonWords
+        self.isEnabled = isEnabled
         self.now = now
         self.log = log
         self.configuration = configuration
@@ -57,11 +68,17 @@ public actor DictionaryLearner {
 
     /// 貼り付けた文章を1つ渡す。たまっていれば、その場で（裏のタスクとして）AIに聞く。
     public func record(_ text: String) async {
+        guard isEnabled() else {
+            clearQueue()
+            return
+        }
         guard let prepared = LearningTextScreen.prepare(
             text,
             maxCharacters: configuration.maxCharactersPerText,
             minimumLength: configuration.minimumTextLength
         ) else { return }
+        // 同じ文の言い直し・重複は1つとして数える。
+        guard queue.contains(prepared) == false else { return }
         queue.append(prepared)
         trimQueue()
         if queuedSince == nil {
@@ -91,6 +108,10 @@ public actor DictionaryLearner {
     }
 
     private func ask() async {
+        guard isEnabled() else {
+            clearQueue()
+            return
+        }
         var state = store.loadState()
         let today = DictionaryLearningStore.dayString(now())
         if state.day != today {
@@ -124,48 +145,95 @@ public actor DictionaryLearner {
             store.saveState(state)
             return
         }
+        // 聞いている間にオフにされたら、答えは使わない。
+        guard isEnabled() else {
+            store.saveState(state)
+            return
+        }
 
-        let knownCorrectTerms = Set(known.map(\.correct))
+        // 1) 機械的な検査
         let rejectedKeys = Set(state.rejected)
+        var rejections: [TermSuggestionRejection: Int] = [:]
+        var accepted: [TermSuggestion] = []
         var seenKeys = Set<String>()
-        var accepted = 0
-        var learned: [TermSuggestion] = []
         for raw in suggestions {
             let suggestion = TermSuggestion(
                 wrong: raw.wrong.trimmingCharacters(in: .whitespacesAndNewlines),
                 correct: raw.correct.trimmingCharacters(in: .whitespacesAndNewlines),
                 isConfident: raw.isConfident
             )
-            let rejection = TermSuggestionFilter.rejection(
+            if let reason = TermSuggestionFilter.rejection(
                 for: suggestion,
                 texts: texts,
                 existingEntries: known,
                 rejectedKeys: rejectedKeys,
                 commonWords: commonWords
-            )
-            guard rejection == nil, seenKeys.insert(suggestion.key).inserted else { continue }
-            accepted += 1
-
-            let hits = texts.filter { $0.contains(suggestion.wrong) }.count
-            let total = state.sightings[suggestion.key, default: 0] + hits
-            let isConfidentVariantOfKnownTerm = suggestion.isConfident && knownCorrectTerms.contains(suggestion.correct)
-            let isConvincing = total >= 2 || (total >= 1 && isConfidentVariantOfKnownTerm)
-            if isConvincing, state.promotionsToday < configuration.maxPromotionsPerDay {
-                learned.append(suggestion)
-                state.promoted.append(suggestion.key)
-                state.sightings[suggestion.key] = nil
-                state.promotionsToday += 1
-            } else {
-                state.sightings[suggestion.key] = total
+            ) {
+                rejections[reason, default: 0] += 1
+                continue
+            }
+            if seenKeys.insert(suggestion.key).inserted {
+                accepted.append(suggestion)
             }
         }
-        store.appendEntries(learned, date: now())
+        // 2) 同じ誤りに、別々の正しい語が競っているものは決めつけない
+        let correctsByWrong = Dictionary(grouping: accepted, by: \.wrong).mapValues { Set($0.map(\.correct)) }
+
+        // 3) 回数を数え、足してよいものを決める
+        let canPromote = commonWords.isUsable
+        if canPromote == false, hasLoggedPause == false {
+            hasLoggedPause = true
+            log("dictionary learning paused reason=noSystemDictionary")
+        }
+        var learned: [TermSuggestion] = []
+        for suggestion in accepted {
+            // 1回の問い合わせで数えるのは1回まで（同じ指示の言い直しや、1つの話題で2回言っただけで足さない）
+            let total = state.sightings[suggestion.key, default: 0] + 1
+            state.sightings[suggestion.key] = total
+            let hasRival = (correctsByWrong[suggestion.wrong]?.count ?? 0) > 1
+                || state.sightings.keys.contains { $0 != suggestion.key && $0.hasPrefix(suggestion.wrong + "\t") }
+            let isCloseToAKnownForm = suggestion.isConfident && known.contains {
+                $0.correct == suggestion.correct && Self.isWithinOneEdit($0.wrong, suggestion.wrong)
+            }
+            let isConvincing = total >= 2 || isCloseToAKnownForm
+            guard canPromote, hasRival == false, isConvincing,
+                  state.promotionsToday + learned.count < configuration.maxPromotionsPerDay,
+                  state.promoted.count + learned.count < configuration.maxLearnedEntries else { continue }
+            learned.append(suggestion)
+        }
+
+        // 4) 書けたものだけ「覚えた」ことにする
+        if learned.isEmpty == false {
+            if store.appendEntries(learned, date: now()) {
+                for suggestion in learned {
+                    state.promoted.append(suggestion.key)
+                    state.sightings[suggestion.key] = nil
+                }
+                state.promotionsToday += learned.count
+            } else {
+                log("dictionary learning failed kind=write")
+                learned = []
+            }
+        }
         store.saveState(state)
-        log("dictionary learning texts=\(texts.count) suggestions=\(suggestions.count) accepted=\(accepted) learned=\(learned.count)")
+
+        var line = "dictionary learning texts=\(texts.count) suggestions=\(suggestions.count) accepted=\(accepted.count)"
+        line += " learned=\(learned.count) entries=\(known.count + learned.count)"
+        if rejections.isEmpty == false {
+            let summary = rejections.sorted { $0.key.rawValue < $1.key.rawValue }
+                .map { "\($0.key.rawValue):\($0.value)" }
+                .joined(separator: ",")
+            line += " rejected=\(summary)"
+        }
+        log(line)
     }
 
-    /// ユーザーが自動辞書から消した行は「二度と足さない」に移す。
+    /// ユーザーが自動辞書から消した行は「二度と足さない」に移す。ファイルごと消したときは、やり直し（拒否には入れない）。
     private func reconcileDeletedEntries(in state: inout DictionaryLearningState) {
+        guard store.autoDictionaryExists else {
+            state.promoted.removeAll()
+            return
+        }
         guard let present = store.readAutoEntries() else { return }
         let presentKeys = Set(present.map { TermSuggestion(wrong: $0.wrong, correct: $0.correct).key })
         let deleted = state.promoted.filter { presentKeys.contains($0) == false }
@@ -176,24 +244,34 @@ public actor DictionaryLearner {
 
     private func handleFailure(_ error: any Error, texts: [String]) {
         let kind: String
-        var shouldRetryLater = true
+        var shouldKeepTexts = true
+        var shouldWait = true
         if let voiceError = error as? VoiceInputError {
-            switch voiceError {
-            case .providerRateLimited:
+            if case .providerRateLimited = voiceError {
                 kind = "rateLimited"
-            default:
+            } else {
                 kind = "http"
             }
-        } else if let suggestionError = error as? TermSuggestionError, suggestionError == .unreadableResponse {
-            kind = "unreadable"
-            shouldRetryLater = false
+        } else if let suggestionError = error as? TermSuggestionError {
+            switch suggestionError {
+            case .unreadableResponse:
+                kind = "unreadable"
+                shouldKeepTexts = false
+                shouldWait = false
+            case .requestRejected:
+                kind = "rejected"
+                shouldKeepTexts = false
+            }
         } else {
             kind = "network"
         }
-        if shouldRetryLater {
+        // 聞いている間にオフにされたなら、文章は戻さない。
+        if shouldKeepTexts, isEnabled() {
             queue = texts + queue
             trimQueue()
             queuedSince = now()
+        }
+        if shouldWait {
             retryNotBefore = now().addingTimeInterval(configuration.retryAfterFailure)
         }
         log("dictionary learning failed kind=\(kind)")
@@ -205,10 +283,30 @@ public actor DictionaryLearner {
             ?? date.addingTimeInterval(24 * 60 * 60)
     }
 
-    /// AI への手がかり。辞書にある正しい語（重複なし・アルファベット順・多すぎれば先頭から）。
+    /// 1文字の入れ替え・足し・引きで同じになるか（ソニオックス／ソニョックス のような崩れ方の違い）。
+    private static func isWithinOneEdit(_ first: String, _ second: String) -> Bool {
+        let left = Array(first)
+        let right = Array(second)
+        guard abs(left.count - right.count) <= 1 else { return false }
+        if left == right { return true }
+        var index = 0
+        while index < min(left.count, right.count), left[index] == right[index] {
+            index += 1
+        }
+        if left.count == right.count {
+            return Array(left[(index + 1)...]) == Array(right[(index + 1)...])
+        }
+        let (longer, shorter) = left.count > right.count ? (left, right) : (right, left)
+        return Array(longer[(index + 1)...]) == Array(shorter[index...])
+    }
+
+    /// AI への手がかり。辞書にある正しい語のうち英数字のもの（重複なし・アルファベット順・多すぎれば先頭から）。
+    /// 日本語の正しい語（人名など）は送らない。
     private static func knownTerms(from entries: [ReplacementDictionary.Entry]) -> [String] {
         var seen = Set<String>()
-        let unique = entries.map(\.correct).filter { seen.insert($0).inserted }
+        let unique = entries.map(\.correct).filter {
+            TermSuggestionFilter.isPlainLatinName($0) && seen.insert($0).inserted
+        }
         let sorted = unique.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         return Array(sorted.prefix(80))
     }

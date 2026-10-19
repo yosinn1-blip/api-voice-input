@@ -212,6 +212,13 @@ final class SystemDictionaryWordCheckerTests: XCTestCase {
         XCTAssertFalse(checker.isCommonWord("Opencode"))
     }
 
+    func testSaysItCanBeReliedOnWhenTheDictionariesAreInstalled() throws {
+        try XCTSkipUnless(systemDictionaryHasEntry("プロジェクト"), "この Mac には日本語の辞書が入っていない")
+        try XCTSkipUnless(systemDictionaryHasEntry("cloud"), "この Mac には英語の辞書が入っていない")
+
+        XCTAssertTrue(SystemDictionaryWordChecker().isUsable)
+    }
+
     func testDoesNotMatchWordsByTheirBeginningOnly() throws {
         try XCTSkipUnless(systemDictionaryHasEntry("カーソル"), "この Mac には日本語の辞書が入っていない")
         let checker = SystemDictionaryWordChecker()
