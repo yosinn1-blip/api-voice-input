@@ -554,6 +554,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// 調査用。オンにするには `defaults write com.yoshiki.APIVoiceInput recent-recordings-archive-enabled -bool true`。
+    private func recentRecordingArchiveEnabled() -> Bool {
+        UserDefaults.standard.object(forKey: AppSettings.recentRecordingArchiveEnabledKey) as? Bool
+            ?? RecentRecordingArchive.defaultEnabled
+    }
+
     private func mediaControlEnabled() -> Bool {
         UserDefaults.standard.object(forKey: AppSettings.mediaControlEnabledKey) as? Bool
             ?? RecordingBehaviorSettings.defaultMediaControlEnabled
@@ -733,7 +739,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 transcriptPopup.dismiss()
             }
-            archiveRecentRecording(audioURL: audioURL, rawTranscript: result.rawTranscript, finalText: result.finalText)
+            if recentRecordingArchiveEnabled() {
+                archiveRecentRecording(audioURL: audioURL, rawTranscript: result.rawTranscript, finalText: result.finalText)
+            }
             try? FileManager.default.removeItem(at: audioURL)
             try? await Task.sleep(nanoseconds: 900_000_000)
             if conversationMode {

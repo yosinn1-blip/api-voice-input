@@ -6,6 +6,7 @@ struct AppSettings {
     static let groqKeyAccount = "groq-api-key"
     static let groqOnboardingDismissedKey = "groq-api-key-onboarding-dismissed"
     static let mediaControlEnabledKey = "recording-media-control-enabled"
+    static let recentRecordingArchiveEnabledKey = "recent-recordings-archive-enabled"
     static let dictionaryLearningEnabledKey = "dictionary-learning-enabled"
     /// 使いながら辞書を育てる機能の初期値。貼り付けた文章を（音声と同じ）Groq に送るので、メニューでいつでも切れる。
     static let dictionaryLearningDefaultEnabled = true

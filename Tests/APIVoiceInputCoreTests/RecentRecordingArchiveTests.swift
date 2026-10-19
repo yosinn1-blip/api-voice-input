@@ -42,4 +42,51 @@ struct RecentRecordingArchiveTests {
         let names = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
         #expect(names == ["20260927-000002.m4a", "20260927-000002.txt", "20260927-000003.m4a", "20260927-000003.txt"])
     }
+
+    @Test("is off unless explicitly turned on")
+    func isOffByDefault() {
+        #expect(RecentRecordingArchive.defaultEnabled == false)
+    }
+
+    @Test("keeps the folder and the saved files readable only by the owner and out of backups")
+    func restrictsPermissionsAndBackup() throws {
+        let root = try makeTempDirectory()
+        let audio = root.appendingPathComponent("in.m4a")
+        try Data([1]).write(to: audio)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: audio.path)
+        let directory = root.appendingPathComponent("recent")
+        // 以前の版が作った 0755 のフォルダも締め直す。
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o755])
+        let archive = RecentRecordingArchive(directory: directory, limit: 10)
+
+        let saved = try archive.save(audioFileURL: audio, rawTranscript: "a", finalText: "a", stamp: "20260927-010203")
+
+        func permissions(_ url: URL) throws -> Int {
+            try (FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber)?.intValue ?? -1
+        }
+        #expect(try permissions(directory) == 0o700)
+        #expect(try permissions(saved) == 0o600)
+        #expect(try permissions(saved.deletingPathExtension().appendingPathExtension("txt")) == 0o600)
+        #expect(try directory.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true)
+    }
+
+    @Test("drops recordings older than the maximum age on the next save")
+    func dropsExpiredRecordings() throws {
+        let root = try makeTempDirectory()
+        let audio = root.appendingPathComponent("in.m4a")
+        try Data([0]).write(to: audio)
+        let directory = root.appendingPathComponent("recent")
+        let archive = RecentRecordingArchive(directory: directory, limit: 10, maxAge: 24 * 60 * 60)
+        let now = Date()
+
+        let old = try archive.save(audioFileURL: audio, rawTranscript: "a", finalText: "a", stamp: "20260925-000001", now: now)
+        let twoDaysAgo = now.addingTimeInterval(-2 * 24 * 60 * 60)
+        for url in [old, old.deletingPathExtension().appendingPathExtension("txt")] {
+            try FileManager.default.setAttributes([.modificationDate: twoDaysAgo], ofItemAtPath: url.path)
+        }
+        _ = try archive.save(audioFileURL: audio, rawTranscript: "b", finalText: "b", stamp: "20260927-000002", now: now)
+
+        let names = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+        #expect(names == ["20260927-000002.m4a", "20260927-000002.txt"])
+    }
 }
