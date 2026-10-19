@@ -11,6 +11,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overlay = OverlayWindowController()
     private let transcriptPopup = TranscriptPopupController()
     private let recorder = RecorderController()
+    private let replacementDictionary = ReplacementDictionary(
+        fileURL: AppSettings.dictionaryFileURL,
+        additionalFileURLs: [AppSettings.autoDictionaryFileURL]
+    )
+    private lazy var dictionaryLearner = DictionaryLearner(
+        dictionary: replacementDictionary,
+        store: DictionaryLearningStore(
+            autoDictionaryURL: AppSettings.autoDictionaryFileURL,
+            stateURL: AppSettings.learningStateFileURL
+        ),
+        providerFactory: { APIKeyStore.loadGroqAPIKey().map { GroqTermSuggestionProvider(apiKey: $0) } },
+        isEnabled: {
+            UserDefaults.standard.object(forKey: AppSettings.dictionaryLearningEnabledKey) as? Bool
+                ?? AppSettings.dictionaryLearningDefaultEnabled
+        },
+        onLearned: { [weak self] learned in
+            Task { @MainActor in self?.statusMenu?.noteLearned(count: learned.count) }
+        },
+        log: { DebugLog.write($0) }
+    )
     private let youTubePauseController = YouTubePauseController()
     private var isRecording = false
     private var isStartingRecording = false
@@ -46,6 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         DebugLog.write("app launched")
+        if replacementDictionary.createSampleFileIfNeeded() {
+            DebugLog.write("dictionary sample created")
+        }
         BrowserPauseBridge.shared.start()
         YouTubePauseController.restorePendingMuteOnLaunchIfNeeded()
         statusMenu = StatusMenuController { [weak self] in
@@ -70,6 +93,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } setMediaControlEnabled: { enabled in
             UserDefaults.standard.set(enabled, forKey: AppSettings.mediaControlEnabledKey)
             DebugLog.write("media control enabled=\(enabled)")
+        } openDictionary: { [weak self] in
+            self?.openDictionaryFile()
+        } getDictionaryLearningEnabled: {
+            UserDefaults.standard.object(forKey: AppSettings.dictionaryLearningEnabledKey) as? Bool
+                ?? AppSettings.dictionaryLearningDefaultEnabled
+        } setDictionaryLearningEnabled: { [weak self] enabled in
+            UserDefaults.standard.set(enabled, forKey: AppSettings.dictionaryLearningEnabledKey)
+            DebugLog.write("dictionary learning enabled=\(enabled)")
+            if enabled == false, let learner = self?.dictionaryLearner {
+                Task { await learner.clearQueue() }
+            }
+        } openLearnedDictionary: { [weak self] in
+            self?.openLearnedDictionaryFile()
         }
         hotkeyController = HotkeyController { [weak self] source in
             Task { @MainActor in self?.toggleRecording(source: source) }
@@ -241,6 +277,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             withIntermediateDirectories: true
         )
         NSWorkspace.shared.open(AppSettings.applicationSupportDirectory)
+    }
+
+    private func openDictionaryFile() {
+        replacementDictionary.createSampleFileIfNeeded()
+        if NSWorkspace.shared.open(replacementDictionary.fileURL) == false {
+            DebugLog.write("dictionary open failed")
+        }
+    }
+
+    private func openLearnedDictionaryFile() {
+        let fileURL = AppSettings.autoDictionaryFileURL
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            showMessage(
+                title: "覚えた語はまだありません",
+                message: "使っているうちに、崩れた固有名詞を見つけると、自動でここに足されます。"
+            )
+            return
+        }
+        if NSWorkspace.shared.open(fileURL) == false {
+            DebugLog.write("learned dictionary open failed")
+        }
+    }
+
+    private func dictionaryLearningEnabled() -> Bool {
+        UserDefaults.standard.object(forKey: AppSettings.dictionaryLearningEnabledKey) as? Bool
+            ?? AppSettings.dictionaryLearningDefaultEnabled
     }
 
     private func showMessage(title: String, message: String) {
@@ -620,7 +682,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let transcription = GroqTranscriptionProvider(apiKey: groqKey)
             let cleanup: any CleanupProvider = FillerRemovalCleanupProvider()
             DebugLog.write("cleanup provider=rule-based-filler-removal")
-            let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: cleanup)
+            let pipeline = VoiceInputPipeline(
+                transcriptionProvider: transcription,
+                cleanupProvider: cleanup,
+                replacementDictionary: replacementDictionary
+            )
             let trimmed = (try? LeadingSilenceTrimmer().trimIfNeeded(audioFileURL: audioURL)) ?? (url: audioURL, trimmedSeconds: 0)
             defer {
                 if trimmed.url != audioURL {
@@ -631,6 +697,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DebugLog.write("process transcription begin")
             let result = try await pipeline.run(audioFileURL: trimmed.url, profile: profile)
             DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")
+            DebugLog.write("dictionary applied count=\(result.dictionaryReplacementCount)")
             if emptyGuard.shouldSuppressTranscript(result.rawTranscript, activity: activity)
                 || emptyGuard.shouldSuppressTranscript(result.finalText, activity: activity) {
                 DebugLog.write("process canceled common silence hallucination finalChars=\(result.finalText.count)")
@@ -653,6 +720,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             try paste.paste(result.finalText, mode: profile.pasteMode)
             DebugLog.write("paste command sent")
+            if dictionaryLearningEnabled() {
+                // 貼り付けが済んでから、裏で辞書の学習に回す（待たされない）
+                let learnedText = result.finalText
+                Task.detached(priority: .background) { [dictionaryLearner] in
+                    await dictionaryLearner.record(learnedText)
+                }
+            }
             overlay.show(.pasted)
             if showPopup {
                 transcriptPopup.show(text: result.finalText)

@@ -14,7 +14,16 @@ final class StatusMenuController: NSObject {
     private let showDiagnostics: () -> Void
     private let getMediaControlEnabled: () -> Bool
     private let setMediaControlEnabled: (Bool) -> Void
+    private let openDictionary: () -> Void
+    private let getDictionaryLearningEnabled: () -> Bool
+    private let setDictionaryLearningEnabled: (Bool) -> Void
+    private let openLearnedDictionary: () -> Void
     private let mediaControlItem: NSMenuItem
+    private let dictionaryLearningItem: NSMenuItem
+    private var learnedDictionaryItem: NSMenuItem?
+    private var unseenLearnedCount = 0
+    private var learnedFlashTask: Task<Void, Never>?
+    private var baseTitle = "🎙"
 
     init(
         toggleAction: @escaping () -> Void,
@@ -26,7 +35,11 @@ final class StatusMenuController: NSObject {
         showGroqAPIKeyStatus: @escaping () -> Void,
         showDiagnostics: @escaping () -> Void,
         getMediaControlEnabled: @escaping () -> Bool,
-        setMediaControlEnabled: @escaping (Bool) -> Void
+        setMediaControlEnabled: @escaping (Bool) -> Void,
+        openDictionary: @escaping () -> Void,
+        getDictionaryLearningEnabled: @escaping () -> Bool,
+        setDictionaryLearningEnabled: @escaping (Bool) -> Void,
+        openLearnedDictionary: @escaping () -> Void
     ) {
         self.toggleAction = toggleAction
         self.restartAction = restartAction
@@ -38,6 +51,11 @@ final class StatusMenuController: NSObject {
         self.showDiagnostics = showDiagnostics
         self.getMediaControlEnabled = getMediaControlEnabled
         self.setMediaControlEnabled = setMediaControlEnabled
+        self.openDictionary = openDictionary
+        self.getDictionaryLearningEnabled = getDictionaryLearningEnabled
+        self.setDictionaryLearningEnabled = setDictionaryLearningEnabled
+        self.openLearnedDictionary = openLearnedDictionary
+        self.dictionaryLearningItem = NSMenuItem(title: "使いながら辞書を育てる", action: #selector(toggleDictionaryLearning), keyEquivalent: "")
         self.mediaControlItem = NSMenuItem(title: "録音開始時にYouTubeを一時停止", action: #selector(toggleMediaControl), keyEquivalent: "")
         super.init()
         item.button?.title = "🎙"
@@ -47,6 +65,16 @@ final class StatusMenuController: NSObject {
         mediaControlItem.target = self
         mediaControlItem.state = getMediaControlEnabled() ? .on : .off
         menu.addItem(mediaControlItem)
+        let dictionary = NSMenuItem(title: "辞書を開く…", action: #selector(openDictionaryFile), keyEquivalent: "")
+        dictionary.target = self
+        menu.addItem(dictionary)
+        dictionaryLearningItem.target = self
+        dictionaryLearningItem.state = getDictionaryLearningEnabled() ? .on : .off
+        menu.addItem(dictionaryLearningItem)
+        let learnedDictionary = NSMenuItem(title: "覚えた語を開く…", action: #selector(openLearnedDictionaryFile), keyEquivalent: "")
+        learnedDictionary.target = self
+        menu.addItem(learnedDictionary)
+        learnedDictionaryItem = learnedDictionary
         menu.addItem(NSMenuItem.separator())
         let setupGuide = NSMenuItem(title: "初回セットアップを開く", action: #selector(openFirstRunSetupGuide), keyEquivalent: "")
         setupGuide.target = self
@@ -107,6 +135,22 @@ final class StatusMenuController: NSObject {
         showDiagnostics()
     }
 
+    @objc private func openDictionaryFile() {
+        openDictionary()
+    }
+
+    @objc private func openLearnedDictionaryFile() {
+        unseenLearnedCount = 0
+        learnedDictionaryItem?.title = "覚えた語を開く…"
+        openLearnedDictionary()
+    }
+
+    @objc private func toggleDictionaryLearning() {
+        let nextValue = getDictionaryLearningEnabled() == false
+        setDictionaryLearningEnabled(nextValue)
+        dictionaryLearningItem.state = nextValue ? .on : .off
+    }
+
     @objc private func toggleMediaControl() {
         let nextValue = getMediaControlEnabled() == false
         setMediaControlEnabled(nextValue)
@@ -114,6 +158,21 @@ final class StatusMenuController: NSObject {
     }
 
     func setConversationModeActive(_ active: Bool) {
-        item.button?.title = active ? "💬" : "🎙"
+        baseTitle = active ? "💬" : "🎙"
+        item.button?.title = baseTitle
+    }
+
+    /// 辞書に語が自動で足されたことを知らせる（貼り付けと同時に送信する使い方だと、直ったかを目で見られないため）。
+    /// メニューバーの絵文字を数秒だけ 📖 にし、メニューの項目に「新しく◯語」と出す。
+    func noteLearned(count: Int) {
+        unseenLearnedCount += count
+        learnedDictionaryItem?.title = "覚えた語を開く…（新しく\(unseenLearnedCount)語）"
+        item.button?.title = "📖"
+        learnedFlashTask?.cancel()
+        learnedFlashTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard Task.isCancelled == false, let self else { return }
+            self.item.button?.title = self.baseTitle
+        }
     }
 }

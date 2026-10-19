@@ -209,6 +209,57 @@ final class VoiceInputPipelineTests: XCTestCase {
         XCTAssertFalse(guarder.shouldSuppressTranscript(result.finalText, activity: active))
     }
 
+    func testPipelineAppliesReplacementDictionaryToCleanedText() async throws {
+        let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("voice-dictionary.m4a")
+        try Data("fake".utf8).write(to: audioURL)
+        let transcription = MockTranscriptionProvider(result: "グロックを使います")
+        let cleanup = MockCleanupProvider(result: "グロックを使います。")
+        let pipeline = VoiceInputPipeline(
+            transcriptionProvider: transcription,
+            cleanupProvider: cleanup,
+            replacementDictionary: try makeReplacementDictionary("グロック\tGroq\n")
+        )
+
+        let result = try await pipeline.run(audioFileURL: audioURL, profile: .defaultJapanese)
+
+        XCTAssertEqual(result.rawTranscript, "グロックを使います")
+        XCTAssertEqual(cleanup.receivedTranscript, "グロックを使います")
+        XCTAssertEqual(result.finalText, "Groqを使います。")
+        XCTAssertEqual(result.dictionaryReplacementCount, 1)
+    }
+
+    func testPipelineAppliesReplacementDictionaryAfterFillerRemoval() async throws {
+        let pipeline = VoiceInputPipeline(
+            transcriptionProvider: MockTranscriptionProvider(result: "えー、グロックとギットハブを使います。"),
+            cleanupProvider: FillerRemovalCleanupProvider(),
+            replacementDictionary: try makeReplacementDictionary("グロック\tGroq\nギットハブ\tGitHub\n")
+        )
+
+        let result = try await pipeline.run(
+            audioFileURL: URL(fileURLWithPath: "/unused-mocked-audio.m4a"),
+            profile: .defaultJapanese
+        )
+
+        XCTAssertEqual(result.rawTranscript, "えー、グロックとギットハブを使います。")
+        XCTAssertEqual(result.finalText, "GroqとGitHubを使います。")
+        XCTAssertEqual(result.dictionaryReplacementCount, 2)
+    }
+
+    func testPipelineWithoutDictionaryReportsNoReplacements() async throws {
+        let pipeline = VoiceInputPipeline(
+            transcriptionProvider: MockTranscriptionProvider(result: "グロックを使います"),
+            cleanupProvider: NoCleanupProvider()
+        )
+
+        let result = try await pipeline.run(
+            audioFileURL: URL(fileURLWithPath: "/unused-mocked-audio.m4a"),
+            profile: .defaultJapanese
+        )
+
+        XCTAssertEqual(result.finalText, "グロックを使います")
+        XCTAssertEqual(result.dictionaryReplacementCount, 0)
+    }
+
     private struct PipelineRun {
         let rawTranscript: String
         let finalText: String
