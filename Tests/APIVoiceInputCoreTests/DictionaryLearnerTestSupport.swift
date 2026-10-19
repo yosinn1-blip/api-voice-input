@@ -33,6 +33,20 @@ final class LogBox: @unchecked Sendable {
     }
 }
 
+/// 「覚えた」知らせを集める。
+final class LearnedNotices: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [[TermSuggestion]] = []
+
+    func append(_ learned: [TermSuggestion]) {
+        lock.withLock { storage.append(learned) }
+    }
+
+    var all: [[TermSuggestion]] {
+        lock.withLock { storage }
+    }
+}
+
 /// 入り切りできるスイッチ（APIキーがある／無い、の再現に使う）。
 final class TestSwitch: @unchecked Sendable {
     private let lock = NSLock()
@@ -130,6 +144,8 @@ struct LearnerFixture {
     let providerFactoryCalls: TestCounter
     /// 「使いながら辞書を育てる」のオン/オフ
     let learningEnabled: TestSwitch
+    /// 辞書に足したときの知らせ
+    let learnedNotices: LearnedNotices
 }
 
 extension XCTestCase {
@@ -161,6 +177,7 @@ extension XCTestCase {
         let providerAvailable = TestSwitch(true)
         let providerFactoryCalls = TestCounter()
         let learningEnabled = TestSwitch(true)
+        let learnedNotices = LearnedNotices()
         var configuration = DictionaryLearner.Configuration()
         configuration.batchSize = 3
         configuration.maxWait = 600
@@ -175,6 +192,7 @@ extension XCTestCase {
             },
             commonWords: FixedWordChecker(commonWords, usable: commonWordsUsable),
             isEnabled: { learningEnabled.isOn },
+            onLearned: { learnedNotices.append($0) },
             now: { clock.now() },
             log: { log.append($0) },
             configuration: configuration
@@ -188,7 +206,8 @@ extension XCTestCase {
             log: log,
             providerAvailable: providerAvailable,
             providerFactoryCalls: providerFactoryCalls,
-            learningEnabled: learningEnabled
+            learningEnabled: learningEnabled,
+            learnedNotices: learnedNotices
         )
     }
 }

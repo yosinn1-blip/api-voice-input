@@ -26,6 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             UserDefaults.standard.object(forKey: AppSettings.dictionaryLearningEnabledKey) as? Bool
                 ?? AppSettings.dictionaryLearningDefaultEnabled
         },
+        onLearned: { [weak self] learned in
+            Task { @MainActor in self?.statusMenu?.noteLearned(count: learned.count) }
+        },
         log: { DebugLog.write($0) }
     )
     private let youTubePauseController = YouTubePauseController()

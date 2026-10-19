@@ -20,6 +20,10 @@ final class StatusMenuController: NSObject {
     private let openLearnedDictionary: () -> Void
     private let mediaControlItem: NSMenuItem
     private let dictionaryLearningItem: NSMenuItem
+    private var learnedDictionaryItem: NSMenuItem?
+    private var unseenLearnedCount = 0
+    private var learnedFlashTask: Task<Void, Never>?
+    private var baseTitle = "🎙"
 
     init(
         toggleAction: @escaping () -> Void,
@@ -70,6 +74,7 @@ final class StatusMenuController: NSObject {
         let learnedDictionary = NSMenuItem(title: "覚えた語を開く…", action: #selector(openLearnedDictionaryFile), keyEquivalent: "")
         learnedDictionary.target = self
         menu.addItem(learnedDictionary)
+        learnedDictionaryItem = learnedDictionary
         menu.addItem(NSMenuItem.separator())
         let setupGuide = NSMenuItem(title: "初回セットアップを開く", action: #selector(openFirstRunSetupGuide), keyEquivalent: "")
         setupGuide.target = self
@@ -135,6 +140,8 @@ final class StatusMenuController: NSObject {
     }
 
     @objc private func openLearnedDictionaryFile() {
+        unseenLearnedCount = 0
+        learnedDictionaryItem?.title = "覚えた語を開く…"
         openLearnedDictionary()
     }
 
@@ -151,6 +158,21 @@ final class StatusMenuController: NSObject {
     }
 
     func setConversationModeActive(_ active: Bool) {
-        item.button?.title = active ? "💬" : "🎙"
+        baseTitle = active ? "💬" : "🎙"
+        item.button?.title = baseTitle
+    }
+
+    /// 辞書に語が自動で足されたことを知らせる（貼り付けと同時に送信する使い方だと、直ったかを目で見られないため）。
+    /// メニューバーの絵文字を数秒だけ 📖 にし、メニューの項目に「新しく◯語」と出す。
+    func noteLearned(count: Int) {
+        unseenLearnedCount += count
+        learnedDictionaryItem?.title = "覚えた語を開く…（新しく\(unseenLearnedCount)語）"
+        item.button?.title = "📖"
+        learnedFlashTask?.cancel()
+        learnedFlashTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard Task.isCancelled == false, let self else { return }
+            self.item.button?.title = self.baseTitle
+        }
     }
 }

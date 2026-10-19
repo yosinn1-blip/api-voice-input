@@ -208,6 +208,29 @@ final class DictionaryLearnerTests: XCTestCase {
         XCTAssertTrue(fixture.log.lines.contains { $0.contains("learned=1") }, "\(fixture.log.lines)")
     }
 
+    func testTellsWhatItLearnedOnlyWhenSomethingWasReallyAdded() async throws {
+        let fixture = try makeLearnerFixture()
+        fixture.provider.enqueue(.success([obsidian]))
+        fixture.provider.enqueue(.success([obsidian]))
+
+        await feedOneBatch(fixture, mentioning: "オブシリアン")
+        XCTAssertEqual(fixture.learnedNotices.all, [], "1回目は足していないので知らせない")
+
+        await feedOneBatch(fixture, mentioning: "オブシリアン")
+        XCTAssertEqual(fixture.learnedNotices.all, [[obsidian]])
+    }
+
+    func testDoesNotTellAnythingWhenTheWordCouldNotBeWritten() async throws {
+        let fixture = try makeLearnerFixture(autoDirectoryIsBlocked: true)
+        fixture.provider.enqueue(.success([obsidian]))
+        fixture.provider.enqueue(.success([obsidian]))
+
+        await feedOneBatch(fixture, mentioning: "オブシリアン")
+        await feedOneBatch(fixture, mentioning: "オブシリアン")
+
+        XCTAssertEqual(fixture.learnedNotices.all, [])
+    }
+
     func testAddsAVariantThatIsOneCharacterAwayFromAKnownFormAtOnce() async throws {
         let fixture = try makeLearnerFixture(manual: "ソニオックス\tSoniox\n")
         fixture.provider.enqueue(.success([soniox]))

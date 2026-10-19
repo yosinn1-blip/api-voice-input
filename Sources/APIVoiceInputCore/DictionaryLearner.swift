@@ -34,6 +34,7 @@ public actor DictionaryLearner {
     private let providerFactory: @Sendable () -> (any TermSuggestionProvider)?
     private let commonWords: any CommonWordChecker
     private let isEnabled: @Sendable () -> Bool
+    private let onLearned: @Sendable ([TermSuggestion]) -> Void
     private let now: @Sendable () -> Date
     private let log: @Sendable (String) -> Void
     private let configuration: Configuration
@@ -46,12 +47,14 @@ public actor DictionaryLearner {
 
     /// `providerFactory` は、聞く直前に呼ぶ。APIキーが無いときは nil を返す（たまった文章はそのまま残る）。
     /// `isEnabled` は「使いながら辞書を育てる」がオンかを、その時々に答える。オフの間は何もためない・送らない。
+    /// `onLearned` は、辞書に語を足せたときに、足した語を知らせる（本人が気づけるようにするため。ログには出さない）。
     public init(
         dictionary: ReplacementDictionary,
         store: DictionaryLearningStore,
         providerFactory: @escaping @Sendable () -> (any TermSuggestionProvider)?,
         commonWords: any CommonWordChecker = SystemDictionaryWordChecker(),
         isEnabled: @escaping @Sendable () -> Bool = { true },
+        onLearned: @escaping @Sendable ([TermSuggestion]) -> Void = { _ in },
         now: @escaping @Sendable () -> Date = { Date() },
         log: @escaping @Sendable (String) -> Void = { _ in },
         configuration: Configuration = Configuration()
@@ -61,6 +64,7 @@ public actor DictionaryLearner {
         self.providerFactory = providerFactory
         self.commonWords = commonWords
         self.isEnabled = isEnabled
+        self.onLearned = onLearned
         self.now = now
         self.log = log
         self.configuration = configuration
@@ -210,6 +214,7 @@ public actor DictionaryLearner {
                     state.sightings[suggestion.key] = nil
                 }
                 state.promotionsToday += learned.count
+                onLearned(learned)
             } else {
                 log("dictionary learning failed kind=write")
                 learned = []
