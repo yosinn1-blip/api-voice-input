@@ -11,4 +11,8 @@ struct AppSettings {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("APIVoiceInput", isDirectory: true)
     }
+
+    static var dictionaryFileURL: URL {
+        applicationSupportDirectory.appendingPathComponent("dictionary.txt")
+    }
 }

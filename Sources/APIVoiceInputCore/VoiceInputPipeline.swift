@@ -3,20 +3,28 @@ import Foundation
 public struct VoiceInputResult: Equatable, Sendable {
     public let rawTranscript: String
     public let finalText: String
+    public let dictionaryReplacementCount: Int
 
-    public init(rawTranscript: String, finalText: String) {
+    public init(rawTranscript: String, finalText: String, dictionaryReplacementCount: Int = 0) {
         self.rawTranscript = rawTranscript
         self.finalText = finalText
+        self.dictionaryReplacementCount = dictionaryReplacementCount
     }
 }
 
 public final class VoiceInputPipeline: Sendable {
     private let transcriptionProvider: any TranscriptionProvider
     private let cleanupProvider: any CleanupProvider
+    private let replacementDictionary: ReplacementDictionary?
 
-    public init(transcriptionProvider: any TranscriptionProvider, cleanupProvider: any CleanupProvider) {
+    public init(
+        transcriptionProvider: any TranscriptionProvider,
+        cleanupProvider: any CleanupProvider,
+        replacementDictionary: ReplacementDictionary? = nil
+    ) {
         self.transcriptionProvider = transcriptionProvider
         self.cleanupProvider = cleanupProvider
+        self.replacementDictionary = replacementDictionary
     }
 
     public func run(audioFileURL: URL, profile: VoiceProfile) async throws -> VoiceInputResult {
@@ -34,7 +42,13 @@ public final class VoiceInputPipeline: Sendable {
             throw VoiceInputError.emptyCleanedText
         }
 
-        return VoiceInputResult(rawTranscript: transcript, finalText: cleaned)
+        // 辞書は整形（フィラー除去）のあとに当てる。生の認識結果（rawTranscript）は置き換えない。
+        let replaced = replacementDictionary?.apply(to: cleaned) ?? ReplacementResult(text: cleaned, count: 0)
+        return VoiceInputResult(
+            rawTranscript: transcript,
+            finalText: replaced.text,
+            dictionaryReplacementCount: replaced.count
+        )
     }
 }
 

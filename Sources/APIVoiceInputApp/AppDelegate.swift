@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overlay = OverlayWindowController()
     private let transcriptPopup = TranscriptPopupController()
     private let recorder = RecorderController()
+    private let replacementDictionary = ReplacementDictionary(fileURL: AppSettings.dictionaryFileURL)
     private let youTubePauseController = YouTubePauseController()
     private var isRecording = false
     private var isStartingRecording = false
@@ -46,6 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         DebugLog.write("app launched")
+        if replacementDictionary.createSampleFileIfNeeded() {
+            DebugLog.write("dictionary sample created")
+        }
         BrowserPauseBridge.shared.start()
         YouTubePauseController.restorePendingMuteOnLaunchIfNeeded()
         statusMenu = StatusMenuController { [weak self] in
@@ -70,6 +74,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } setMediaControlEnabled: { enabled in
             UserDefaults.standard.set(enabled, forKey: AppSettings.mediaControlEnabledKey)
             DebugLog.write("media control enabled=\(enabled)")
+        } openDictionary: { [weak self] in
+            self?.openDictionaryFile()
         }
         hotkeyController = HotkeyController { [weak self] source in
             Task { @MainActor in self?.toggleRecording(source: source) }
@@ -241,6 +247,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             withIntermediateDirectories: true
         )
         NSWorkspace.shared.open(AppSettings.applicationSupportDirectory)
+    }
+
+    private func openDictionaryFile() {
+        replacementDictionary.createSampleFileIfNeeded()
+        if NSWorkspace.shared.open(replacementDictionary.fileURL) == false {
+            DebugLog.write("dictionary open failed")
+        }
     }
 
     private func showMessage(title: String, message: String) {
@@ -605,7 +618,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let transcription = GroqTranscriptionProvider(apiKey: groqKey)
             let cleanup: any CleanupProvider = FillerRemovalCleanupProvider()
             DebugLog.write("cleanup provider=rule-based-filler-removal")
-            let pipeline = VoiceInputPipeline(transcriptionProvider: transcription, cleanupProvider: cleanup)
+            let pipeline = VoiceInputPipeline(
+                transcriptionProvider: transcription,
+                cleanupProvider: cleanup,
+                replacementDictionary: replacementDictionary
+            )
             let trimmed = (try? LeadingSilenceTrimmer().trimIfNeeded(audioFileURL: audioURL)) ?? (url: audioURL, trimmedSeconds: 0)
             defer {
                 if trimmed.url != audioURL {
@@ -616,6 +633,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DebugLog.write("process transcription begin")
             let result = try await pipeline.run(audioFileURL: trimmed.url, profile: profile)
             DebugLog.write("process transcription ok rawChars=\(result.rawTranscript.count) finalChars=\(result.finalText.count)")
+            DebugLog.write("dictionary applied count=\(result.dictionaryReplacementCount)")
             if emptyGuard.shouldSuppressTranscript(result.rawTranscript, activity: activity)
                 || emptyGuard.shouldSuppressTranscript(result.finalText, activity: activity) {
                 DebugLog.write("process canceled common silence hallucination finalChars=\(result.finalText.count)")

@@ -14,6 +14,7 @@ final class StatusMenuController: NSObject {
     private let showDiagnostics: () -> Void
     private let getMediaControlEnabled: () -> Bool
     private let setMediaControlEnabled: (Bool) -> Void
+    private let openDictionary: () -> Void
     private let mediaControlItem: NSMenuItem
 
     init(
@@ -26,7 +27,8 @@ final class StatusMenuController: NSObject {
         showGroqAPIKeyStatus: @escaping () -> Void,
         showDiagnostics: @escaping () -> Void,
         getMediaControlEnabled: @escaping () -> Bool,
-        setMediaControlEnabled: @escaping (Bool) -> Void
+        setMediaControlEnabled: @escaping (Bool) -> Void,
+        openDictionary: @escaping () -> Void
     ) {
         self.toggleAction = toggleAction
         self.restartAction = restartAction
@@ -38,6 +40,7 @@ final class StatusMenuController: NSObject {
         self.showDiagnostics = showDiagnostics
         self.getMediaControlEnabled = getMediaControlEnabled
         self.setMediaControlEnabled = setMediaControlEnabled
+        self.openDictionary = openDictionary
         self.mediaControlItem = NSMenuItem(title: "録音開始時にYouTubeを一時停止", action: #selector(toggleMediaControl), keyEquivalent: "")
         super.init()
         item.button?.title = "🎙"
@@ -47,6 +50,9 @@ final class StatusMenuController: NSObject {
         mediaControlItem.target = self
         mediaControlItem.state = getMediaControlEnabled() ? .on : .off
         menu.addItem(mediaControlItem)
+        let dictionary = NSMenuItem(title: "辞書を開く…", action: #selector(openDictionaryFile), keyEquivalent: "")
+        dictionary.target = self
+        menu.addItem(dictionary)
         menu.addItem(NSMenuItem.separator())
         let setupGuide = NSMenuItem(title: "初回セットアップを開く", action: #selector(openFirstRunSetupGuide), keyEquivalent: "")
         setupGuide.target = self
@@ -105,6 +111,10 @@ final class StatusMenuController: NSObject {
 
     @objc private func showDiagnosticStatus() {
         showDiagnostics()
+    }
+
+    @objc private func openDictionaryFile() {
+        openDictionary()
     }
 
     @objc private func toggleMediaControl() {
