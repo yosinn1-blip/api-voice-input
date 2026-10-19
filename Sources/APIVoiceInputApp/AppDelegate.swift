@@ -91,9 +91,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } getDictionaryLearningEnabled: {
             UserDefaults.standard.object(forKey: AppSettings.dictionaryLearningEnabledKey) as? Bool
                 ?? AppSettings.dictionaryLearningDefaultEnabled
-        } setDictionaryLearningEnabled: { enabled in
+        } setDictionaryLearningEnabled: { [weak self] enabled in
             UserDefaults.standard.set(enabled, forKey: AppSettings.dictionaryLearningEnabledKey)
             DebugLog.write("dictionary learning enabled=\(enabled)")
+            if enabled == false, let learner = self?.dictionaryLearner {
+                Task { await learner.clearQueue() }
+            }
         } openLearnedDictionary: { [weak self] in
             self?.openLearnedDictionaryFile()
         }

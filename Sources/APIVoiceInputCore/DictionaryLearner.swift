@@ -71,6 +71,12 @@ public actor DictionaryLearner {
         await ask()
     }
 
+    /// ためてある文章を捨てる。学習をオフにしたとき、オフにする前の文章を、あとで再びオンにした時に送らないため。
+    public func clearQueue() {
+        queue.removeAll()
+        queuedSince = nil
+    }
+
     private func shouldAsk() -> Bool {
         guard isAsking == false, queue.isEmpty == false, now() >= retryNotBefore else { return false }
         if queue.count >= configuration.batchSize { return true }
@@ -85,7 +91,6 @@ public actor DictionaryLearner {
     }
 
     private func ask() async {
-        guard let provider = providerFactory() else { return }
         var state = store.loadState()
         let today = DictionaryLearningStore.dayString(now())
         if state.day != today {
@@ -93,7 +98,12 @@ public actor DictionaryLearner {
             state.requestsToday = 0
             state.promotionsToday = 0
         }
-        guard state.requestsToday < configuration.maxRequestsPerDay else { return }
+        // 上限の日は翌日まで待つ（貼り付けのたびに状態やAPIキーを読みにいかない）。
+        guard state.requestsToday < configuration.maxRequestsPerDay else {
+            retryNotBefore = Self.startOfNextDay(after: now())
+            return
+        }
+        guard let provider = providerFactory() else { return }
 
         isAsking = true
         defer { isAsking = false }
@@ -187,6 +197,12 @@ public actor DictionaryLearner {
             retryNotBefore = now().addingTimeInterval(configuration.retryAfterFailure)
         }
         log("dictionary learning failed kind=\(kind)")
+    }
+
+    private static func startOfNextDay(after date: Date) -> Date {
+        let calendar = Calendar.current
+        return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date))
+            ?? date.addingTimeInterval(24 * 60 * 60)
     }
 
     /// AI への手がかり。辞書にある正しい語（重複なし・アルファベット順・多すぎれば先頭から）。

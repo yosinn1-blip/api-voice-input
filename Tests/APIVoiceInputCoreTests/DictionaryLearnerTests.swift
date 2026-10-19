@@ -55,6 +55,21 @@ final class DictionaryLearnerTests: XCTestCase {
         XCTAssertEqual(fixture.provider.calls.first?.texts.count, 4)
     }
 
+    func testForgetsTheQueuedTextsWhenToldTo() async throws {
+        let fixture = try makeLearnerFixture()
+        await fixture.learner.record("一つ目の文章です。")
+        await fixture.learner.record("二つ目の文章です。")
+
+        await fixture.learner.clearQueue()
+        let after = ["三つ目の文章です。", "四つ目の文章です。", "五つ目の文章です。"]
+        for text in after {
+            await fixture.learner.record(text)
+        }
+
+        XCTAssertEqual(fixture.provider.calls.count, 1)
+        XCTAssertEqual(fixture.provider.calls.first?.texts, after)
+    }
+
     func testSkipsTextsThatLookPrivate() async throws {
         let fixture = try makeLearnerFixture()
         let privateTexts = [
@@ -244,6 +259,17 @@ final class DictionaryLearnerTests: XCTestCase {
         await fixture.learner.record("翌日の文章です。")
 
         XCTAssertEqual(fixture.provider.calls.count, 3)
+    }
+
+    func testDoesNotLookForTheKeyAgainOnceTheDailyLimitIsReached() async throws {
+        let fixture = try makeLearnerFixture { $0.maxRequestsPerDay = 1 }
+
+        for index in 1...9 {
+            await fixture.learner.record("\(index)番目の文章です。")
+        }
+
+        XCTAssertEqual(fixture.provider.calls.count, 1)
+        XCTAssertEqual(fixture.providerFactoryCalls.value, 1, "上限のあとは鍵を読みにいかない")
     }
 
     // MARK: ログ

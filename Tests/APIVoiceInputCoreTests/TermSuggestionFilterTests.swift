@@ -29,9 +29,9 @@ final class TermSuggestionFilterTests: XCTestCase {
     }
 
     func testAcceptsCorrectWordsWithSpacesDigitsAndSymbols() {
-        XCTAssertNil(rejection("オブシリアン", "Claude Code"))
-        XCTAssertNil(rejection("オブシリアン", "1Password"))
-        XCTAssertNil(rejection("オブシリアン", "Node.js"))
+        XCTAssertNil(rejection("クロードコート", "Claude Code", texts: ["クロードコートを使う"]))
+        XCTAssertNil(rejection("ワンパスワード", "1Password", texts: ["ワンパスワードに保存した"]))
+        XCTAssertNil(rejection("ノードジェイエス", "Node.js", texts: ["ノードジェイエスで動かす"]))
     }
 
     func testRejectsAnEmptyOrUnchangedSuggestion() {
@@ -53,6 +53,7 @@ final class TermSuggestionFilterTests: XCTestCase {
 
     func testRejectsWrongWordsThatAreTooShortOrTooLong() {
         XCTAssertEqual(rejection("BI", "API", texts: ["BIを使う"]), .badWrong)
+        XCTAssertEqual(rejection("mgo", "Mongo", texts: ["mgoを使う"]), .badWrong)
         XCTAssertEqual(rejection("ソニ", "Soni", texts: ["ソニを使う"]), .badWrong)
         XCTAssertEqual(rejection("ソニョ", "Soni", texts: ["ソニョを使う"]), .badWrong)
         let long = String(repeating: "ア", count: 31)
@@ -89,9 +90,44 @@ final class TermSuggestionFilterTests: XCTestCase {
         XCTAssertNil(rejection("クロードコート", "Claude Code", texts: texts, existing: existing))
     }
 
-    func testRejectsPairsTheUserDeletedBefore() {
+    func testRejectsAWrongWordTheUserDeletedBeforeWhateverItWasChangedTo() {
         XCTAssertEqual(rejection("オブシリアン", "Obsidian", rejectedKeys: ["オブシリアン\tObsidian"]), .rejectedBefore)
-        XCTAssertNil(rejection("オブシリアン", "Obsidian", rejectedKeys: ["オブシリアン\tObsidian Notes"]))
+        XCTAssertEqual(rejection("オブシリアン", "Obsidian Notes", rejectedKeys: ["オブシリアン\tObsidian"]), .rejectedBefore)
+        XCTAssertNil(rejection("オブシリアン", "Obsidian", rejectedKeys: ["オブシデアン\tObsidian"]))
+    }
+
+    func testRejectsAWrongWordThatIsOnlyPartOfAKnownWord() {
+        // 「Claud→Claude」を足すと、正しく書けた「Claude」が「Claudee」になってしまう
+        let existing = [ReplacementDictionary.Entry(wrong: "クロード", correct: "Claude")]
+
+        XCTAssertEqual(rejection("Claud", "Claude", texts: ["Claudを使う"], existing: existing), .partOfKnownWord)
+    }
+
+    func testRejectsAWrongWordThatOnlyAppearsInsideLongerWords() {
+        XCTAssertEqual(rejection("グロース", "Groq", texts: ["グロースハックの本を読んだ"]), .notInTexts)
+        XCTAssertNil(rejection("グロース", "Groq", texts: ["グロースハックの本とグロースの話"]))
+        XCTAssertEqual(rejection("Glog", "Groq", texts: ["MyGlogとGlog2を使う"]), .notInTexts)
+    }
+
+    func testRejectsPairsThatDoNotSoundAlike() {
+        // 実際の過去の発話で、AIが辞書の語に無理に当てはめた例
+        XCTAssertEqual(rejection("セレブラス", "Cloudflare", texts: ["セレブラスのAPI設定"]), .notSoundAlike)
+        XCTAssertEqual(rejection("フェイブル", "Firebase", texts: ["フェイブルがなくなった"]), .notSoundAlike)
+        XCTAssertEqual(rejection("Glog", "GitHub", texts: ["Glogのキー"]), .notSoundAlike)
+    }
+
+    func testRejectsANewNameWhenAKnownNameSoundsJustAsClose() {
+        // Glog は Groq とも Grok とも同じくらい近い。辞書に Groq があるのに Grok と決めつけない
+        let existing = [ReplacementDictionary.Entry(wrong: "グロック", correct: "Groq")]
+
+        XCTAssertEqual(rejection("Glog", "Grok", texts: ["Glogのキー"], existing: existing), .ambiguousWithKnownTerm)
+        XCTAssertNil(rejection("Glog", "Groq", texts: ["Glogのキー"], existing: existing))
+    }
+
+    func testAcceptsANewNameWhenNoKnownNameIsClose() {
+        let existing = [ReplacementDictionary.Entry(wrong: "グロック", correct: "Groq")]
+
+        XCTAssertNil(rejection("ハギングフェイス", "HuggingFace", texts: ["ハギングフェイスに登録した"], existing: existing))
     }
 
     func testRejectsOrdinaryWords() {
@@ -127,7 +163,13 @@ final class LearningTextScreenTests: XCTestCase {
             "キーは sk-abcdefghijklmnopqrstuvwxyz1234 です",
             "パスワードは忘れてしまいました",
             "マイナンバーカードを作りに行く",
-            "暗証番号を変更したい"
+            "暗証番号を変更したい",
+            "電話は０９０−１２３４−５６７８です",
+            "住所は東京都の○○町です",
+            "電話番号を教えてください",
+            "生年月日を入力するところです",
+            "APIキーを貼り付けた",
+            "my password is secret"
         ]
 
         for text in privateTexts {

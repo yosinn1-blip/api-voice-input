@@ -183,16 +183,21 @@ public final class ReplacementDictionary: @unchecked Sendable {
     /// 重なる場所は優先された方だけが置き換わり、置き換えた結果は再び置き換えられない。
     private static func replace(in text: String, using entries: [Entry]) -> ReplacementResult {
         let characters = Array(text)
+        let present = Set(characters)
         var claimed = [Bool](repeating: false, count: characters.count)
         var spans: [(start: Int, length: Int, correct: String)] = []
 
         for entry in entries {
             let pattern = Array(entry.wrong)
-            guard pattern.isEmpty == false, pattern.count <= characters.count else { continue }
+            // 文章に出てこない文字で始まる項目は、探すまでもない（項目が増えても遅くならないように）
+            guard let first = pattern.first, present.contains(first), pattern.count <= characters.count else { continue }
             var start = 0
             while start + pattern.count <= characters.count {
                 let end = start + pattern.count
-                if characters[start..<end].elementsEqual(pattern), claimed[start..<end].contains(true) == false {
+                // 英字の語は、前後が英数字でつながっているとき（Claud が Claude の中など）は置き換えない。
+                if characters[start..<end].elementsEqual(pattern),
+                   WordBoundary.isStandalone(characters, start: start, end: end, includingKatakana: false),
+                   claimed[start..<end].contains(true) == false {
                     for index in start..<end {
                         claimed[index] = true
                     }

@@ -46,20 +46,20 @@ final class ReplacementDictionaryTests: XCTestCase {
     }
 
     func testLongerWrongWordWinsOverAShorterOneThatOverlapsIt() throws {
-        let dictionary = try makeReplacementDictionary("AB\t1\nBCD\t2\n")
+        let dictionary = try makeReplacementDictionary("アイ\t1\nイウエ\t2\n")
 
-        let result = dictionary.apply(to: "ABCD")
+        let result = dictionary.apply(to: "アイウエ")
 
-        XCTAssertEqual(result.text, "A2")
+        XCTAssertEqual(result.text, "ア2")
         XCTAssertEqual(result.count, 1)
     }
 
     func testOverlappingWrongWordsOfSameLengthUseTheEarlierLine() throws {
-        let abcFirst = try makeReplacementDictionary("ABC\t1\nBCD\t2\n")
-        let bcdFirst = try makeReplacementDictionary("BCD\t2\nABC\t1\n")
+        let abcFirst = try makeReplacementDictionary("アイウ\t1\nイウエ\t2\n")
+        let bcdFirst = try makeReplacementDictionary("イウエ\t2\nアイウ\t1\n")
 
-        XCTAssertEqual(abcFirst.apply(to: "ABCD").text, "1D")
-        XCTAssertEqual(bcdFirst.apply(to: "ABCD").text, "A2")
+        XCTAssertEqual(abcFirst.apply(to: "アイウエ").text, "1エ")
+        XCTAssertEqual(bcdFirst.apply(to: "アイウエ").text, "ア2")
     }
 
     func testWhenTheSameWrongWordIsListedTwiceTheFirstLineWins() throws {
@@ -88,6 +88,25 @@ final class ReplacementDictionaryTests: XCTestCase {
 
         XCTAssertEqual(dictionary.apply(to: "abc a.c").text, "abc X")
         XCTAssertEqual(dictionary.apply(to: "価格").text, "$1 (税込)")
+    }
+
+    func testDoesNotReplaceInsideALongerLatinWord() throws {
+        let dictionary = try makeReplacementDictionary("Claud\tX\nGlog\tGroq\n")
+
+        XCTAssertEqual(dictionary.apply(to: "Claude Code").text, "Claude Code")
+        XCTAssertEqual(dictionary.apply(to: "MyGlog と Glog2 と Glogger").text, "MyGlog と Glog2 と Glogger")
+    }
+
+    func testReplacesALatinWordNextToJapaneseOrSymbols() throws {
+        let dictionary = try makeReplacementDictionary("Glog\tGroq\n")
+
+        XCTAssertEqual(dictionary.apply(to: "GlogのAPIと(Glog)と Glog.").text, "GroqのAPIと(Groq)と Groq.")
+    }
+
+    func testReplacesAKatakanaWordInsideALongerKatakanaCompound() throws {
+        let dictionary = try makeReplacementDictionary("コーデックス\tCodex\n")
+
+        XCTAssertEqual(dictionary.apply(to: "コーデックスアプリ").text, "Codexアプリ")
     }
 
     func testMatchingIsCaseSensitive() throws {
@@ -208,9 +227,9 @@ final class ReplacementDictionaryTests: XCTestCase {
     }
 
     func testEarlierFileWinsWhenWrongWordsOfSameLengthOverlap() throws {
-        let dictionary = try makeReplacementDictionary(files: ["BCD\t2\n", "ABC\t1\n"])
+        let dictionary = try makeReplacementDictionary(files: ["イウエ\t2\n", "アイウ\t1\n"])
 
-        XCTAssertEqual(dictionary.apply(to: "ABCD").text, "A2")
+        XCTAssertEqual(dictionary.apply(to: "アイウエ").text, "ア2")
     }
 
     func testLongerWrongWordWinsEvenWhenItIsInTheLaterFile() throws {

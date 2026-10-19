@@ -61,6 +61,20 @@ struct FixedWordChecker: CommonWordChecker {
     }
 }
 
+/// 回数を数える。
+final class TestCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func increment() {
+        lock.withLock { count += 1 }
+    }
+
+    var value: Int {
+        lock.withLock { count }
+    }
+}
+
 /// 台本どおりに答える提案係。呼ばれた内容を覚えておく。
 final class MockTermSuggestionProvider: TermSuggestionProvider, @unchecked Sendable {
     struct Call: Equatable {
@@ -97,6 +111,8 @@ struct LearnerFixture {
     let clock: TestClock
     let log: LogBox
     let providerAvailable: TestSwitch
+    /// 提案係（＝APIキーの読み込み）を用意しにいった回数
+    let providerFactoryCalls: TestCounter
 }
 
 extension XCTestCase {
@@ -118,6 +134,7 @@ extension XCTestCase {
         let clock = TestClock()
         let log = LogBox()
         let providerAvailable = TestSwitch(true)
+        let providerFactoryCalls = TestCounter()
         var configuration = DictionaryLearner.Configuration()
         configuration.batchSize = 3
         configuration.maxWait = 600
@@ -126,7 +143,10 @@ extension XCTestCase {
         let learner = DictionaryLearner(
             dictionary: dictionary,
             store: store,
-            providerFactory: { providerAvailable.isOn ? provider : nil },
+            providerFactory: {
+                providerFactoryCalls.increment()
+                return providerAvailable.isOn ? provider : nil
+            },
             commonWords: FixedWordChecker(commonWords),
             now: { clock.now() },
             log: { log.append($0) },
@@ -139,7 +159,8 @@ extension XCTestCase {
             provider: provider,
             clock: clock,
             log: log,
-            providerAvailable: providerAvailable
+            providerAvailable: providerAvailable,
+            providerFactoryCalls: providerFactoryCalls
         )
     }
 }

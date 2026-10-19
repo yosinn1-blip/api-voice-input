@@ -39,7 +39,13 @@ public enum TermSuggestionRejection: Equatable, Sendable {
     case alreadyKnown
     /// 辞書にある誤りを含む長い語を、同じ正しい語に直そうとしている（名前の一部が消える）
     case swallowsKnownWord
+    /// 辞書にある正しい語の一部（Claud は Claude の一部。足すと正しく書けた語が壊れる）
+    case partOfKnownWord
     case rejectedBefore
+    /// 誤りと正しい語の音が離れすぎている（AIが辞書の語へ無理に当てはめた）
+    case notSoundAlike
+    /// 辞書にある別の語のほうが、同じくらい音が近い（Glog は Groq とも Grok とも近い）
+    case ambiguousWithKnownTerm
     case commonWord
 }
 
@@ -59,13 +65,28 @@ public enum TermSuggestionFilter {
         if wrong.lowercased() == correct.lowercased() { return .noRealChange }
         guard isPlainLatinName(correct) else { return .badCorrect }
         guard isPlausibleWrongWord(wrong) else { return .badWrong }
-        guard texts.contains(where: { $0.contains(wrong) }) else { return .notInTexts }
+        // 「グロースハック」の中の「グロース」のように、別の語の一部としてしか出てこないものは数えない。
+        guard texts.contains(where: { WordBoundary.standaloneCount(of: wrong, in: $0) > 0 }) else { return .notInTexts }
         if existingEntries.contains(where: { $0.wrong == wrong || $0.correct == wrong }) { return .alreadyKnown }
         // 例: 「クロード→Claude」があるのに「クロードコート→Claude」を足すと、「コート」が消えてしまう。
         if existingEntries.contains(where: { $0.correct == correct && $0.wrong != wrong && wrong.contains($0.wrong) }) {
             return .swallowsKnownWord
         }
-        if rejectedKeys.contains(suggestion.key) { return .rejectedBefore }
+        // 例: 「Claud→Claude」を足すと、正しく書けた「Claude」まで「Claudee」になってしまう。
+        let lowercasedWrong = wrong.lowercased()
+        if existingEntries.contains(where: { $0.correct.lowercased().contains(lowercasedWrong) }) { return .partOfKnownWord }
+        // 消された語は、何に直す提案でも二度と足さない。
+        if rejectedKeys.contains(where: { $0.hasPrefix(wrong + "\t") }) { return .rejectedBefore }
+        let distance = PhoneticSimilarity.distance(wrong, correct)
+        guard distance <= PhoneticSimilarity.maximumDistanceForSameName else { return .notSoundAlike }
+        // 辞書に無い新しい名前は、辞書にある語のほうが近い（または同じくらい近い）ときは決めつけない。
+        let knownCorrectTerms = Set(existingEntries.map(\.correct))
+        if knownCorrectTerms.contains(correct) == false {
+            let limit = min(distance, PhoneticSimilarity.maximumDistanceForSameName)
+            if knownCorrectTerms.contains(where: { PhoneticSimilarity.distance(wrong, $0) <= limit }) {
+                return .ambiguousWithKnownTerm
+            }
+        }
         if commonWords.isCommonWord(wrong) { return .commonWord }
         return nil
     }
@@ -88,9 +109,9 @@ public enum TermSuggestionFilter {
         return scalars.contains(where: isASCIILetter)
     }
 
-    /// 誤り: カタカナだけ（4字以上）か、英数字だけ（英字3つ以上・先頭は英字）。漢字・ひらがな・空白を含まない。
+    /// 誤り: カタカナだけ（4字以上）か、英数字だけ（英字4つ以上・先頭は英字）。漢字・ひらがな・空白を含まない。
     private static func isPlausibleWrongWord(_ text: String) -> Bool {
-        guard (3...30).contains(text.count) else { return false }
+        guard (4...30).contains(text.count) else { return false }
         let scalars = Array(text.unicodeScalars)
         if scalars.allSatisfy(isKatakana) {
             return text.count >= 4
@@ -98,7 +119,7 @@ public enum TermSuggestionFilter {
         guard let first = scalars.first, isASCIILetter(first), scalars.allSatisfy(isASCIILetterOrDigit) else {
             return false
         }
-        return scalars.filter(isASCIILetter).count >= 3
+        return scalars.filter(isASCIILetter).count >= 4
     }
 
     private static func isKatakana(_ scalar: Unicode.Scalar) -> Bool {
@@ -116,11 +137,14 @@ public enum TermSuggestionFilter {
 
 /// 学習のために AI へ送る文章を選ぶ。個人情報や鍵に見えるものは送らない。
 public enum LearningTextScreen {
-    private static let privateKeywords = ["パスワード", "暗証", "マイナンバー", "口座番号", "カード番号", "秘密鍵", "シークレット"]
+    private static let privateKeywords = [
+        "パスワード", "暗証", "マイナンバー", "口座番号", "カード番号", "秘密鍵", "シークレット",
+        "住所", "電話番号", "生年月日", "クレジット", "APIキー"
+    ]
     private static let privatePatterns = [
         #"https?://"#,
         #"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"#,
-        #"[0-9][0-9\- ]{5,}[0-9]"#,
+        #"[0-9０-９][0-9０-９\-−ー ]{5,}[0-9０-９]"#,
         #"[A-Za-z0-9_\-]{24,}"#
     ]
 
@@ -134,6 +158,7 @@ public enum LearningTextScreen {
             .replacingOccurrences(of: "\r", with: " ")
         guard trimmed.count >= minimumLength else { return nil }
         if privateKeywords.contains(where: { trimmed.contains($0) }) { return nil }
+        if trimmed.lowercased().contains("password") { return nil }
         if privatePatterns.contains(where: { trimmed.range(of: $0, options: .regularExpression) != nil }) { return nil }
         return trimmed.count > maxCharacters ? String(trimmed.prefix(maxCharacters)) : trimmed
     }
