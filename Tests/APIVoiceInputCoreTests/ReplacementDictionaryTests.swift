@@ -190,6 +190,78 @@ final class ReplacementDictionaryTests: XCTestCase {
         XCTAssertEqual(dictionary.apply(to: "グロック").text, "Groq")
     }
 
+    // MARK: 複数のファイル（手書き＋自動で覚えた語）
+
+    func testUsesEntriesFromEveryFile() throws {
+        let dictionary = try makeReplacementDictionary(files: ["グロック\tGroq\n", "オブシリアン\tObsidian\n"])
+
+        let result = dictionary.apply(to: "グロックとオブシリアン")
+
+        XCTAssertEqual(result.text, "GroqとObsidian")
+        XCTAssertEqual(result.count, 2)
+    }
+
+    func testEarlierFileWinsWhenTheSameWrongWordIsInBothFiles() throws {
+        let dictionary = try makeReplacementDictionary(files: ["グロック\tGroq\n", "グロック\tGrok\n"])
+
+        XCTAssertEqual(dictionary.apply(to: "グロック").text, "Groq")
+    }
+
+    func testEarlierFileWinsWhenWrongWordsOfSameLengthOverlap() throws {
+        let dictionary = try makeReplacementDictionary(files: ["BCD\t2\n", "ABC\t1\n"])
+
+        XCTAssertEqual(dictionary.apply(to: "ABCD").text, "A2")
+    }
+
+    func testLongerWrongWordWinsEvenWhenItIsInTheLaterFile() throws {
+        let dictionary = try makeReplacementDictionary(files: ["グロック\tGroq\n", "グロックボット\tGrok Bot\n"])
+
+        XCTAssertEqual(dictionary.apply(to: "グロックボット").text, "Grok Bot")
+    }
+
+    func testAMissingFileDoesNotStopTheOtherFiles() throws {
+        let autoMissing = try makeReplacementDictionary(files: ["グロック\tGroq\n", nil])
+        let manualMissing = try makeReplacementDictionary(files: [nil, "グロック\tGroq\n"])
+
+        XCTAssertEqual(autoMissing.apply(to: "グロック").text, "Groq")
+        XCTAssertEqual(manualMissing.apply(to: "グロック").text, "Groq")
+    }
+
+    func testReloadsWhenOnlyTheLaterFileChanges() throws {
+        let dictionary = try makeReplacementDictionary(files: ["グロック\tGroq\n", "オブシリアン\tObsidian\n"])
+        for (index, url) in dictionary.fileURLs.enumerated() {
+            try setModificationDate(1_000_000_000 + TimeInterval(index), of: url)
+        }
+        XCTAssertEqual(dictionary.apply(to: "オブシリアン").text, "Obsidian")
+
+        try "オブシリアン\tOBSIDIAN\n".write(to: dictionary.fileURLs[1], atomically: true, encoding: .utf8)
+        try setModificationDate(1_000_000_100, of: dictionary.fileURLs[1])
+
+        XCTAssertEqual(dictionary.apply(to: "オブシリアン").text, "OBSIDIAN")
+    }
+
+    func testCurrentEntriesListsEverythingLongestWrongWordFirst() throws {
+        let dictionary = try makeReplacementDictionary(files: ["ギット\tGit\n# メモ\n", "ギットハブ\tGitHub\n"])
+
+        let entries = dictionary.currentEntries()
+
+        XCTAssertEqual(entries.map(\.wrong), ["ギットハブ", "ギット"])
+        XCTAssertEqual(entries.map(\.correct), ["GitHub", "Git"])
+    }
+
+    func testSampleFileIsCreatedOnlyForTheFirstFile() throws {
+        let directory = try makeTemporaryDirectory()
+        let first = directory.appendingPathComponent("dictionary.txt")
+        let second = directory.appendingPathComponent("dictionary-auto.txt")
+        let dictionary = ReplacementDictionary(fileURL: first, additionalFileURLs: [second])
+
+        XCTAssertTrue(dictionary.createSampleFileIfNeeded())
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: second.path))
+        XCTAssertEqual(dictionary.fileURL, first)
+    }
+
     // MARK: 見本ファイル
 
     func testCreatesSampleFileWhenMissing() throws {

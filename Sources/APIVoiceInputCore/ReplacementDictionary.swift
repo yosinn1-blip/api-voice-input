@@ -18,17 +18,29 @@ public struct ReplacementResult: Equatable, Sendable {
 /// 置き換えた結果はもう一度置き換えない。ファイルが無い・読めない・0件のときは何もしない。
 /// ファイルの更新日時が変わったときだけ読み直す。
 public final class ReplacementDictionary: @unchecked Sendable {
-    struct Entry: Equatable {
-        let wrong: String
-        let correct: String
+    public struct Entry: Equatable, Sendable {
+        public let wrong: String
+        public let correct: String
+
+        public init(wrong: String, correct: String) {
+            self.wrong = wrong
+            self.correct = correct
+        }
     }
 
+    /// 手書きの辞書。メニューで開く・見本を作る対象で、`fileURLs` の先頭。
     public let fileURL: URL
+    private let additionalFileURLs: [URL]
     private let lock = NSLock()
-    private var loaded: (modifiedAt: Date, entries: [Entry])?
+    private var loaded: (stamps: [Date?], entries: [Entry])?
 
-    public init(fileURL: URL) {
+    /// 読むファイルの全部。先に書いたファイルの行が優先される
+    /// （同じ長さの「誤り」が重なるとき、同じ「誤り」が複数あるとき）。
+    public var fileURLs: [URL] { [fileURL] + additionalFileURLs }
+
+    public init(fileURL: URL, additionalFileURLs: [URL] = []) {
         self.fileURL = fileURL
+        self.additionalFileURLs = additionalFileURLs
     }
 
     public func apply(to text: String) -> ReplacementResult {
@@ -112,28 +124,33 @@ public final class ReplacementDictionary: @unchecked Sendable {
         return (header + entries.map { "\($0.wrong)\t\($0.correct)" } + [""]).joined(separator: "\n")
     }()
 
-    private func currentEntries() -> [Entry] {
+    /// いまの辞書の全項目。優先順（長い「誤り」が先、同じ長さなら先のファイルの行が先）。
+    public func currentEntries() -> [Entry] {
         lock.withLock {
-            guard let modifiedAt = modificationDate() else {
-                loaded = nil
-                return []
-            }
-            if let loaded, loaded.modifiedAt == modifiedAt {
+            let files = fileURLs
+            let stamps = files.map { Self.modificationDate(of: $0) }
+            if let loaded, loaded.stamps == stamps {
                 return loaded.entries
             }
-            guard let contents = try? String(contentsOf: fileURL, encoding: .utf8) else {
-                loaded = nil
-                return []
+            var all: [Entry] = []
+            var readFailed = false
+            for (url, stamp) in zip(files, stamps) where stamp != nil {
+                guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
+                    readFailed = true
+                    continue
+                }
+                all += Self.parse(contents)
             }
-            let entries = Self.prioritized(Self.parse(contents))
-            loaded = (modifiedAt, entries)
+            let entries = Self.prioritized(all)
+            // 読めなかったファイルがあるときは覚えない（次の呼び出しでもう一度読む）。
+            loaded = readFailed ? nil : (stamps, entries)
             return entries
         }
     }
 
     /// URL の資源値はキャッシュされうるので、更新日時は都度パスから読む。
-    private func modificationDate() -> Date? {
-        let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
+    private static func modificationDate(of url: URL) -> Date? {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
         return attributes?[.modificationDate] as? Date
     }
 
