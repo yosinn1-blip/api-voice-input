@@ -7,16 +7,14 @@ final class TermSuggestionFilterTests: XCTestCase {
         _ wrong: String,
         _ correct: String,
         texts: [String] = ["今日はオブシリアンにメモした", "今はGlogを使っている", "後藤さんとカーソルを動かす"],
-        existingWrongs: Set<String> = [],
-        knownCorrectTerms: Set<String> = [],
+        existing: [ReplacementDictionary.Entry] = [],
         rejectedKeys: Set<String> = [],
         commonWords: Set<String> = []
     ) -> TermSuggestionRejection? {
         TermSuggestionFilter.rejection(
             for: TermSuggestion(wrong: wrong, correct: correct),
             texts: texts,
-            existingWrongs: existingWrongs,
-            knownCorrectTerms: knownCorrectTerms,
+            existingEntries: existing,
             rejectedKeys: rejectedKeys,
             commonWords: FixedWordChecker(commonWords)
         )
@@ -75,8 +73,20 @@ final class TermSuggestionFilterTests: XCTestCase {
     }
 
     func testRejectsWordsTheDictionaryAlreadyHas() {
-        XCTAssertEqual(rejection("オブシリアン", "Obsidian", existingWrongs: ["オブシリアン"]), .alreadyKnown)
-        XCTAssertEqual(rejection("Glog", "Groq", knownCorrectTerms: ["Glog"]), .alreadyKnown)
+        let knownWrong = ReplacementDictionary.Entry(wrong: "オブシリアン", correct: "Obsidian")
+        let knownCorrect = ReplacementDictionary.Entry(wrong: "グロック", correct: "Glog")
+
+        XCTAssertEqual(rejection("オブシリアン", "Obsidian", existing: [knownWrong]), .alreadyKnown)
+        XCTAssertEqual(rejection("Glog", "Groq", existing: [knownCorrect]), .alreadyKnown)
+    }
+
+    func testRejectsALongerWordThatSwallowsAKnownWrongWordAndKeepsTheSameCorrectWord() {
+        // 「クロードコート」(Claude Code の崩れ)を「Claude」だけに直すと、「コート」が消えてしまう
+        let existing = [ReplacementDictionary.Entry(wrong: "クロード", correct: "Claude")]
+        let texts = ["クロードコートで修正をお願いした"]
+
+        XCTAssertEqual(rejection("クロードコート", "Claude", texts: texts, existing: existing), .swallowsKnownWord)
+        XCTAssertNil(rejection("クロードコート", "Claude Code", texts: texts, existing: existing))
     }
 
     func testRejectsPairsTheUserDeletedBefore() {

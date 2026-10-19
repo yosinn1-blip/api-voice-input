@@ -15,7 +15,11 @@ final class StatusMenuController: NSObject {
     private let getMediaControlEnabled: () -> Bool
     private let setMediaControlEnabled: (Bool) -> Void
     private let openDictionary: () -> Void
+    private let getDictionaryLearningEnabled: () -> Bool
+    private let setDictionaryLearningEnabled: (Bool) -> Void
+    private let openLearnedDictionary: () -> Void
     private let mediaControlItem: NSMenuItem
+    private let dictionaryLearningItem: NSMenuItem
 
     init(
         toggleAction: @escaping () -> Void,
@@ -28,7 +32,10 @@ final class StatusMenuController: NSObject {
         showDiagnostics: @escaping () -> Void,
         getMediaControlEnabled: @escaping () -> Bool,
         setMediaControlEnabled: @escaping (Bool) -> Void,
-        openDictionary: @escaping () -> Void
+        openDictionary: @escaping () -> Void,
+        getDictionaryLearningEnabled: @escaping () -> Bool,
+        setDictionaryLearningEnabled: @escaping (Bool) -> Void,
+        openLearnedDictionary: @escaping () -> Void
     ) {
         self.toggleAction = toggleAction
         self.restartAction = restartAction
@@ -41,6 +48,10 @@ final class StatusMenuController: NSObject {
         self.getMediaControlEnabled = getMediaControlEnabled
         self.setMediaControlEnabled = setMediaControlEnabled
         self.openDictionary = openDictionary
+        self.getDictionaryLearningEnabled = getDictionaryLearningEnabled
+        self.setDictionaryLearningEnabled = setDictionaryLearningEnabled
+        self.openLearnedDictionary = openLearnedDictionary
+        self.dictionaryLearningItem = NSMenuItem(title: "使いながら辞書を育てる", action: #selector(toggleDictionaryLearning), keyEquivalent: "")
         self.mediaControlItem = NSMenuItem(title: "録音開始時にYouTubeを一時停止", action: #selector(toggleMediaControl), keyEquivalent: "")
         super.init()
         item.button?.title = "🎙"
@@ -53,6 +64,12 @@ final class StatusMenuController: NSObject {
         let dictionary = NSMenuItem(title: "辞書を開く…", action: #selector(openDictionaryFile), keyEquivalent: "")
         dictionary.target = self
         menu.addItem(dictionary)
+        dictionaryLearningItem.target = self
+        dictionaryLearningItem.state = getDictionaryLearningEnabled() ? .on : .off
+        menu.addItem(dictionaryLearningItem)
+        let learnedDictionary = NSMenuItem(title: "覚えた語を開く…", action: #selector(openLearnedDictionaryFile), keyEquivalent: "")
+        learnedDictionary.target = self
+        menu.addItem(learnedDictionary)
         menu.addItem(NSMenuItem.separator())
         let setupGuide = NSMenuItem(title: "初回セットアップを開く", action: #selector(openFirstRunSetupGuide), keyEquivalent: "")
         setupGuide.target = self
@@ -115,6 +132,16 @@ final class StatusMenuController: NSObject {
 
     @objc private func openDictionaryFile() {
         openDictionary()
+    }
+
+    @objc private func openLearnedDictionaryFile() {
+        openLearnedDictionary()
+    }
+
+    @objc private func toggleDictionaryLearning() {
+        let nextValue = getDictionaryLearningEnabled() == false
+        setDictionaryLearningEnabled(nextValue)
+        dictionaryLearningItem.state = nextValue ? .on : .off
     }
 
     @objc private func toggleMediaControl() {

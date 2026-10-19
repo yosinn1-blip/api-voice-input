@@ -37,6 +37,8 @@ public enum TermSuggestionRejection: Equatable, Sendable {
     case badWrong
     case notInTexts
     case alreadyKnown
+    /// 辞書にある誤りを含む長い語を、同じ正しい語に直そうとしている（名前の一部が消える）
+    case swallowsKnownWord
     case rejectedBefore
     case commonWord
 }
@@ -47,8 +49,7 @@ public enum TermSuggestionFilter {
     public static func rejection(
         for suggestion: TermSuggestion,
         texts: [String],
-        existingWrongs: Set<String>,
-        knownCorrectTerms: Set<String>,
+        existingEntries: [ReplacementDictionary.Entry],
         rejectedKeys: Set<String>,
         commonWords: any CommonWordChecker
     ) -> TermSuggestionRejection? {
@@ -59,7 +60,11 @@ public enum TermSuggestionFilter {
         guard isPlainLatinName(correct) else { return .badCorrect }
         guard isPlausibleWrongWord(wrong) else { return .badWrong }
         guard texts.contains(where: { $0.contains(wrong) }) else { return .notInTexts }
-        if existingWrongs.contains(wrong) || knownCorrectTerms.contains(wrong) { return .alreadyKnown }
+        if existingEntries.contains(where: { $0.wrong == wrong || $0.correct == wrong }) { return .alreadyKnown }
+        // 例: 「クロード→Claude」があるのに「クロードコート→Claude」を足すと、「コート」が消えてしまう。
+        if existingEntries.contains(where: { $0.correct == correct && $0.wrong != wrong && wrong.contains($0.wrong) }) {
+            return .swallowsKnownWord
+        }
         if rejectedKeys.contains(suggestion.key) { return .rejectedBefore }
         if commonWords.isCommonWord(wrong) { return .commonWord }
         return nil

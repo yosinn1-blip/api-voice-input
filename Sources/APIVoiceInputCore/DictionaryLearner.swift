@@ -115,7 +115,6 @@ public actor DictionaryLearner {
             return
         }
 
-        let existingWrongs = Set(known.map(\.wrong))
         let knownCorrectTerms = Set(known.map(\.correct))
         let rejectedKeys = Set(state.rejected)
         var seenKeys = Set<String>()
@@ -130,8 +129,7 @@ public actor DictionaryLearner {
             let rejection = TermSuggestionFilter.rejection(
                 for: suggestion,
                 texts: texts,
-                existingWrongs: existingWrongs,
-                knownCorrectTerms: knownCorrectTerms,
+                existingEntries: known,
                 rejectedKeys: rejectedKeys,
                 commonWords: commonWords
             )

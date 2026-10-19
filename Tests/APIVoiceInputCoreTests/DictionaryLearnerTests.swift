@@ -152,6 +152,18 @@ final class DictionaryLearnerTests: XCTestCase {
         XCTAssertTrue(fixture.log.lines.contains { $0.contains("suggestions=5") }, "\(fixture.log.lines)")
     }
 
+    func testDoesNotShortenAnExtendedNameToItsFirstWord() async throws {
+        let fixture = try makeLearnerFixture(manual: "クロード\tClaude\nクロードコード\tClaude Code\n")
+        fixture.provider.enqueue(.success([TermSuggestion(wrong: "クロードコート", correct: "Claude")]))
+
+        for text in ["クロードコートで修正をお願いした", "またクロードコートに指示を出す", "夕飯はカレーにするつもり"] {
+            await fixture.learner.record(text)
+        }
+
+        XCTAssertEqual(fixture.dictionary.apply(to: "クロードコートです").text, "Claudeコートです")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.store.autoDictionaryURL.path))
+    }
+
     func testLimitsHowManyWordsAreAddedPerDay() async throws {
         let fixture = try makeLearnerFixture { $0.maxPromotionsPerDay = 1 }
         fixture.provider.enqueue(.success([obsidian, TermSuggestion(wrong: "ソニョックス", correct: "Soniox")]))
