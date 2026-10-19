@@ -124,7 +124,8 @@ public actor DictionaryLearner {
         for raw in suggestions {
             let suggestion = TermSuggestion(
                 wrong: raw.wrong.trimmingCharacters(in: .whitespacesAndNewlines),
-                correct: raw.correct.trimmingCharacters(in: .whitespacesAndNewlines)
+                correct: raw.correct.trimmingCharacters(in: .whitespacesAndNewlines),
+                isConfident: raw.isConfident
             )
             let rejection = TermSuggestionFilter.rejection(
                 for: suggestion,
@@ -139,8 +140,8 @@ public actor DictionaryLearner {
 
             let hits = texts.filter { $0.contains(suggestion.wrong) }.count
             let total = state.sightings[suggestion.key, default: 0] + hits
-            let isVariantOfKnownTerm = knownCorrectTerms.contains(suggestion.correct)
-            let isConvincing = total >= 2 || (total >= 1 && isVariantOfKnownTerm)
+            let isConfidentVariantOfKnownTerm = suggestion.isConfident && knownCorrectTerms.contains(suggestion.correct)
+            let isConvincing = total >= 2 || (total >= 1 && isConfidentVariantOfKnownTerm)
             if isConvincing, state.promotionsToday < configuration.maxPromotionsPerDay {
                 learned.append(suggestion)
                 state.promoted.append(suggestion.key)

@@ -121,6 +121,18 @@ final class DictionaryLearnerTests: XCTestCase {
         XCTAssertEqual(fixture.dictionary.apply(to: "ソニョックス").text, "Soniox")
     }
 
+    func testAVariantOfAKnownTermNeedsTwoSightingsWhenTheAIWasNotSure() async throws {
+        let fixture = try makeLearnerFixture(manual: "ソニオックス\tSoniox\n")
+        fixture.provider.enqueue(.success([TermSuggestion(wrong: "ソニョックス", correct: "Soniox", isConfident: false)]))
+
+        for text in ["さっきソニョックスの料金を調べた", "夕飯はカレーにするつもり", "明日は雨になりそうです"] {
+            await fixture.learner.record(text)
+        }
+
+        XCTAssertEqual(fixture.dictionary.apply(to: "ソニョックス").text, "ソニョックス")
+        XCTAssertEqual(fixture.store.loadState().sightings["ソニョックス\tSoniox"], 1)
+    }
+
     func testIgnoresSuggestionsThatFailTheChecks() async throws {
         let fixture = try makeLearnerFixture(manual: "グロック\tGroq\n", commonWords: ["カーソル"])
         fixture.provider.enqueue(.success([

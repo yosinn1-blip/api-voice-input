@@ -98,6 +98,13 @@ final class LearningTextScreenTests: XCTestCase {
         )
     }
 
+    func testTurnsLineBreaksIntoSpacesSoTheNumberedListStaysIntact() {
+        XCTAssertEqual(
+            LearningTextScreen.prepare("一行目です。\n二行目です。\r\n三行目です。", maxCharacters: 400, minimumLength: 6),
+            "一行目です。 二行目です。 三行目です。"
+        )
+    }
+
     func testSkipsTextsThatAreTooShort() {
         XCTAssertNil(LearningTextScreen.prepare("はい", maxCharacters: 400, minimumLength: 6))
     }

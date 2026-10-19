@@ -4,10 +4,13 @@ import Foundation
 public struct TermSuggestion: Equatable, Sendable {
     public let wrong: String
     public let correct: String
+    /// AI 自身が「確信がある」と答えたか。確信がないときは、1回見つけただけでは足さない。
+    public let isConfident: Bool
 
-    public init(wrong: String, correct: String) {
+    public init(wrong: String, correct: String, isConfident: Bool = true) {
         self.wrong = wrong
         self.correct = correct
+        self.isConfident = isConfident
     }
 
     /// 学習の記録（見つけた回数・消された語）で使う印。
@@ -118,7 +121,12 @@ public enum LearningTextScreen {
 
     /// 送ってよい文章を整えて返す。短すぎる・私的に見えるものは nil。長いものは前半だけにする。
     public static func prepare(_ text: String, maxCharacters: Int, minimumLength: Int) -> String? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 番号つきの一覧で送るので、文章の中の改行は空白にする。
+        let trimmed = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\r\n", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
         guard trimmed.count >= minimumLength else { return nil }
         if privateKeywords.contains(where: { trimmed.contains($0) }) { return nil }
         if privatePatterns.contains(where: { trimmed.range(of: $0, options: .regularExpression) != nil }) { return nil }
