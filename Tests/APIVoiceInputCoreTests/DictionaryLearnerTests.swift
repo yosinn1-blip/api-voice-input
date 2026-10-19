@@ -37,7 +37,7 @@ final class DictionaryLearnerTests: XCTestCase {
     }
 
     func testOnlyEnglishTermsAreSentAsHints() async throws {
-        let fixture = try makeLearnerFixture(manual: "ざんねん\t残念\nくらたに\t倉谷\nグロック\tGroq\nじゃぱん\tJapan Post\n")
+        let fixture = try makeLearnerFixture(manual: "ざんねん\t残念\nやまだ\t山田\nグロック\tGroq\nじゃぱん\tJapan Post\n")
 
         for text in ["一つ目の文章です。", "二つ目の文章です。", "三つ目の文章です。"] {
             await fixture.learner.record(text)
