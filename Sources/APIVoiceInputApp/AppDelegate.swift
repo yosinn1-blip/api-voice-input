@@ -477,6 +477,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func archiveRecentRecording(audioURL: URL, rawTranscript: String, finalText: String) {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let archive = RecentRecordingArchive(
+            directory: AppSettings.applicationSupportDirectory.appendingPathComponent("recent-recordings")
+        )
+        do {
+            let saved = try archive.save(audioFileURL: audioURL, rawTranscript: rawTranscript, finalText: finalText, stamp: formatter.string(from: Date()))
+            DebugLog.write("recent recording saved \(saved.lastPathComponent)")
+        } catch {
+            DebugLog.write("recent recording save failed error=\(error.localizedDescription)")
+        }
+    }
+
     private func mediaControlEnabled() -> Bool {
         UserDefaults.standard.object(forKey: AppSettings.mediaControlEnabledKey) as? Bool
             ?? RecordingBehaviorSettings.defaultMediaControlEnabled
@@ -644,6 +659,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 transcriptPopup.dismiss()
             }
+            archiveRecentRecording(audioURL: audioURL, rawTranscript: result.rawTranscript, finalText: result.finalText)
             try? FileManager.default.removeItem(at: audioURL)
             try? await Task.sleep(nanoseconds: 900_000_000)
             if conversationMode {
