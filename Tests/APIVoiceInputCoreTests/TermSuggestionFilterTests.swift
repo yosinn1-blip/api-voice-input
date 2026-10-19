@@ -96,6 +96,19 @@ final class TermSuggestionFilterTests: XCTestCase {
         XCTAssertNil(rejection("オブシリアン", "Obsidian", rejectedKeys: ["オブシデアン\tObsidian"]))
     }
 
+    func testRejectsAKnownNameWithOnlyANumberAddedToIt() {
+        // 「Chrome1」を「Chrome」に直すと、番号つきの名前から数字が消えてしまう
+        XCTAssertEqual(rejection("Chrome1", "Chrome", texts: ["Chrome1の項目を見る"]), .noRealChange)
+        XCTAssertEqual(rejection("Gemini2", "Gemini", texts: ["Gemini2を試した"]), .noRealChange)
+    }
+
+    func testRejectsRepeatedSoundsThatAreProbablyOnomatopoeia() {
+        // 「ビリビリ」は中国の動画サイトの名前でもあるが、擬音語としてふつうに使う
+        XCTAssertEqual(rejection("ビリビリ", "Bilibili", texts: ["ビリビリ動画を見た"]), .looksLikeOnomatopoeia)
+        XCTAssertEqual(rejection("チカチカ", "Chika", texts: ["画面がチカチカする"]), .looksLikeOnomatopoeia)
+        XCTAssertNil(rejection("ビリビリー", "Bilibili", texts: ["ビリビリーを見た"]))
+    }
+
     func testRejectsAWrongWordThatIsOnlyPartOfAKnownWord() {
         // 「Claud→Claude」を足すと、正しく書けた「Claude」が「Claudee」になってしまう
         let existing = [ReplacementDictionary.Entry(wrong: "クロード", correct: "Claude")]

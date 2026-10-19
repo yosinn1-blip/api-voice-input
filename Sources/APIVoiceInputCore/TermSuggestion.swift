@@ -39,6 +39,8 @@ public enum TermSuggestionRejection: String, Equatable, Sendable {
     case badCorrect
     case badWrong
     case notInTexts
+    /// 同じ音の繰り返し（ビリビリ、チカチカ）。擬音語としてふつうに使うので、名前にしない
+    case looksLikeOnomatopoeia
     case alreadyKnown
     /// 辞書にある誤りを含む長い語を、同じ正しい語に直そうとしている（名前の一部が消える）
     case swallowsKnownWord
@@ -65,9 +67,11 @@ public enum TermSuggestionFilter {
         let wrong = suggestion.wrong
         let correct = suggestion.correct
         if wrong.isEmpty || correct.isEmpty { return .empty }
-        if wrong.lowercased() == correct.lowercased() { return .noRealChange }
+        // 大文字小文字や数字が違うだけ（Chrome1 → Chrome）は、聞き間違いではなく別の名前・番号。
+        if withoutDigits(wrong).lowercased() == withoutDigits(correct).lowercased() { return .noRealChange }
         guard isPlainLatinName(correct) else { return .badCorrect }
         guard isPlausibleWrongWord(wrong) else { return .badWrong }
+        if isRepeatedKatakana(wrong) { return .looksLikeOnomatopoeia }
         // 「グロースハック」の中の「グロース」のように、別の語の一部としてしか出てこないものは数えない。
         guard texts.contains(where: { WordBoundary.standaloneCount(of: wrong, in: $0) > 0 }) else { return .notInTexts }
         if existingEntries.contains(where: { $0.wrong == wrong || $0.correct == wrong }) { return .alreadyKnown }
@@ -92,6 +96,20 @@ public enum TermSuggestionFilter {
         }
         if commonWords.isCommonWord(wrong) { return .commonWord }
         return nil
+    }
+
+    private static func withoutDigits(_ text: String) -> String {
+        text.filter { $0.isNumber == false }
+    }
+
+    /// 「ビリビリ」のように、同じ音を2回繰り返すカタカナ。
+    private static func isRepeatedKatakana(_ text: String) -> Bool {
+        let characters = Array(text)
+        guard characters.count >= 4, characters.count.isMultiple(of: 2), characters.allSatisfy(WordBoundary.isKatakana) else {
+            return false
+        }
+        let half = characters.count / 2
+        return characters[..<half] == characters[half...]
     }
 
     /// 正しい語: 半角の英数字（間に空白・.+-_ は可）で、前後は英数字。例: Groq, Claude Code, 1Password
